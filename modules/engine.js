@@ -455,8 +455,22 @@ export function computeFinancials(state, options = {}) {
         assetValues,
         liabilityOutstanding,
         emiStatus,
-        hfri
+        hfri,
+        monthlySeries: lastMonths(monthKey(today), 6).map(m => ({
+            month: m,
+            income: monthlyFlow[m]?.inc || 0,
+            spending: monthlyFlow[m]?.exp || 0
+        })),
+        categoryBreakdown: Object.values(categoryMap)
+            .sort((a, b) => b.total - a.total)
+            .slice(0, 6)
     };
+}
+
+function lastMonths(endKey, count) {
+    const out = [];
+    for (let i = count - 1; i >= 0; i--) out.push(shiftMonth(endKey, -i));
+    return out;
 }
 
 function shiftMonth(key, delta) {

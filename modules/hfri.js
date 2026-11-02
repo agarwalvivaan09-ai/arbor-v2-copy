@@ -7,10 +7,12 @@
 //   D    = 0.40 D_DTI + 0.60 D_DSTI
 // ==========================================================
 
+import { HFRI_SITE } from "./site.js";
+
 export const HFRI_LINKS = {
-    calculator: "https://agarwalvivaan09-ai.github.io/HFRI/",
-    paper: "https://agarwalvivaan09-ai.github.io/vivaan-dev/research-hfri.html",
-    source: "https://github.com/agarwalvivaan09-ai/HFRI"
+    calculator: HFRI_SITE.calculator,
+    paper: HFRI_SITE.research,
+    source: HFRI_SITE.source
 };
 
 const clamp = (x, lo, hi) => Math.min(hi, Math.max(lo, x));

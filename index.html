@@ -1,24 +1,382 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Arbor</title>
-
-    <!-- Viewport for proper scaling -->
+    <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-    <!-- Fonts (important for premium UI) -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-
-    <!-- Styles -->
-    <link rel="stylesheet" href="style.css">
+    <title>Arbor | The Financial Operating System · by Vivaan Agarwal</title>
+    <meta name="description" content="Arbor brings accounts, activity, assets, loans and EMIs into one workspace and measures your financial resilience with the Household Financial Resilience Index (HFRI). Designed and built by Vivaan Agarwal.">
+    <meta name="author" content="Vivaan Agarwal">
+    <meta property="og:title" content="Arbor: the financial operating system">
+    <meta property="og:description" content="Track money like a ledger. Measure resilience with HFRI. Designed and built by Vivaan Agarwal.">
+    <link rel="icon" href="favicon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="landing.css">
 </head>
 <body>
+<a class="skip-link" href="#main">Skip to content</a>
 
-    <!-- Root container (JS renders everything here) -->
-    <div id="app"></div>
+<header class="site-nav" id="top">
+    <div class="wrap nav-inner">
+        <a class="brand" href="#top" aria-label="Arbor home">
+            <span class="brand-logo" data-logo></span>
+            <span class="brand-text"><strong>Arbor</strong><small>by Vivaan Agarwal</small></span>
+        </a>
+        <nav class="nav-links" aria-label="Primary">
+            <a href="#product">Product</a>
+            <a href="#features">Features</a>
+            <a href="#resilience">Resilience</a>
+            <a href="#how">How it works</a>
+            <a href="#creator">Creator</a>
+        </nav>
+        <div class="nav-actions">
+            <a class="btn btn-ghost" href="app.html" data-auth-login>Log in</a>
+            <a class="btn btn-primary" href="app.html?mode=signup" data-auth-cta>Get started</a>
+            <button class="nav-toggle" aria-label="Open menu" aria-expanded="false" data-nav-toggle>
+                <span></span><span></span>
+            </button>
+        </div>
+    </div>
+    <div class="mobile-menu" data-mobile-menu hidden>
+        <a href="#product">Product</a>
+        <a href="#features">Features</a>
+        <a href="#resilience">Resilience</a>
+        <a href="#how">How it works</a>
+        <a href="#creator">Creator</a>
+        <a href="app.html">Log in</a>
+    </div>
+</header>
 
-    <!-- Main app script -->
-    <script type="module" src="app.js"></script>
+<main id="main">
 
+<!-- HERO -->
+<section class="hero" id="product">
+    <div class="wrap hero-grid">
+        <div class="hero-copy">
+            <div class="eyebrow"><span class="dot"></span> Financial operating system · V2</div>
+            <h1>Understand your financial position, <em>not just your transactions.</em></h1>
+            <p class="lead">Arbor brings your accounts, spending, investments, loans and EMIs into one workspace. Then it answers the harder question: how well could your finances withstand a shock?</p>
+            <div class="hero-ctas">
+                <a class="btn btn-primary btn-lg" href="app.html?mode=signup" data-auth-cta>Create your free workspace</a>
+                <a class="btn btn-ghost btn-lg" href="#how">See how it works</a>
+            </div>
+            <ul class="hero-points">
+                <li>Resilience scored with the published HFRI model</li>
+                <li>No bank login needed: you choose what to record</li>
+                <li>Personal, business and family workspaces</li>
+            </ul>
+        </div>
+
+        <div class="hero-visual" aria-label="Sample Arbor dashboard">
+            <div class="mock">
+                <div class="mock-top">
+                    <span></span><span></span><span></span>
+                    <div class="mock-url">arbor · Personal workspace</div>
+                </div>
+                <div class="mock-body">
+                    <div class="mock-row">
+                        <div class="mock-kpi wide">
+                            <small>Net worth</small>
+                            <strong>₹18,42,500</strong>
+                            <em class="up">+₹46,200 this month</em>
+                        </div>
+                        <div class="mock-kpi gauge">
+                            <small>HFRI</small>
+                            <div class="ring" style="--v:78"><strong>78.4</strong></div>
+                            <em>Very high</em>
+                        </div>
+                    </div>
+                    <div class="mock-row three">
+                        <div class="mock-kpi"><small>Cash</small><strong>₹3,12,000</strong></div>
+                        <div class="mock-kpi"><small>Savings rate</small><strong>31.2%</strong></div>
+                        <div class="mock-kpi"><small>Emergency</small><strong>6.8 mo</strong></div>
+                    </div>
+                    <div class="mock-chart">
+                        <small>Cash flow · last 6 months</small>
+                        <div class="bars">
+                            <div><i style="height:62%"></i><b style="height:44%"></b></div>
+                            <div><i style="height:66%"></i><b style="height:51%"></b></div>
+                            <div><i style="height:64%"></i><b style="height:38%"></b></div>
+                            <div><i style="height:71%"></i><b style="height:47%"></b></div>
+                            <div><i style="height:69%"></i><b style="height:55%"></b></div>
+                            <div><i style="height:78%"></i><b style="height:49%"></b></div>
+                        </div>
+                    </div>
+                    <div class="mock-dims">
+                        <div><span>Savings</span><i style="--w:88%"></i></div>
+                        <div><span>Debt</span><i style="--w:81%"></i></div>
+                        <div><span>Emergency</span><i style="--w:84%"></i></div>
+                        <div><span>Stability</span><i style="--w:61%"></i></div>
+                    </div>
+                </div>
+            </div>
+            <p class="mock-caption">Illustrative sample data</p>
+        </div>
+    </div>
+</section>
+
+<!-- FACT STRIP -->
+<section class="facts" aria-label="Arbor at a glance">
+    <div class="wrap facts-grid">
+        <div><strong>0–100</strong><span>Resilience score from the HFRI research model</span></div>
+        <div><strong>4</strong><span>Dimensions: savings, debt, emergency cover, stability</span></div>
+        <div><strong>13</strong><span>Live metrics, from net worth to monthly flow</span></div>
+        <div><strong>1,000</strong><span>Simulated households used to test the index</span></div>
+    </div>
+</section>
+
+<!-- PROBLEM -->
+<section class="section">
+    <div class="wrap split">
+        <div>
+            <div class="kicker">The problem</div>
+            <h2>Most finance tools explain the past. Arbor is built to help you prepare for the future.</h2>
+        </div>
+        <div class="prose">
+            <p>Traditional tracking stops at transactions, balances and spending history. Arbor connects those records to the questions behind real financial decisions:</p>
+            <ul class="question-list">
+                <li>How financially resilient am I?</li>
+                <li>How much debt am I really carrying, and how fast is it falling?</li>
+                <li>How many months could my savings cover if income stopped?</li>
+                <li>How does my net worth change as loans, assets and cash move?</li>
+            </ul>
+        </div>
+    </div>
+</section>
+
+<!-- FEATURES -->
+<section class="section alt" id="features">
+    <div class="wrap">
+        <div class="section-head">
+            <div class="kicker">Features</div>
+            <h2>One system for every part of your money.</h2>
+            <p>Every entry updates cash, net worth and resilience instantly. No spreadsheets, no formulas to maintain.</p>
+        </div>
+        <div class="feature-grid">
+            <article class="feature">
+                <div class="ficon">₹</div>
+                <h3>Accounts and ledger</h3>
+                <p>Bank accounts, cash and wallets with opening balances. Record income, expenses and transfers in a clean, searchable ledger.</p>
+            </article>
+            <article class="feature">
+                <div class="ficon">↗</div>
+                <h3>Assets that grow</h3>
+                <p>Track investments, gold, property and vehicles with simple or compound appreciation or depreciation, plus partial sales.</p>
+            </article>
+            <article class="feature">
+                <div class="ficon">⟳</div>
+                <h3>Loans and EMIs</h3>
+                <p>Create a loan with an EMI schedule once. Every installment that falls due reduces cash and the outstanding balance, using reducing-balance interest.</p>
+            </article>
+            <article class="feature">
+                <div class="ficon">◎</div>
+                <h3>Net worth, always current</h3>
+                <p>Cash plus assets minus liabilities, calculated as of today. Future-dated entries wait until their date arrives.</p>
+            </article>
+            <article class="feature">
+                <div class="ficon">▤</div>
+                <h3>Separate workspaces</h3>
+                <p>Keep personal, business and family finances apart while using the same metrics and the same ledger system.</p>
+            </article>
+            <article class="feature">
+                <div class="ficon">✓</div>
+                <h3>A guide built in</h3>
+                <p>A step-by-step manual inside the app shows which button to press for every real-world money event.</p>
+            </article>
+        </div>
+    </div>
+</section>
+
+<!-- RESILIENCE / HFRI -->
+<section class="section dark" id="resilience">
+    <div class="wrap">
+        <div class="section-head light">
+            <div class="kicker">Household Financial Resilience Index · implemented</div>
+            <h2>Measuring more than wealth.</h2>
+            <p>The question isn't just "how much money do I have?" It is "how well can my financial position withstand change?" Arbor answers it with the HFRI, an independent research framework by Vivaan Agarwal, using the same published scoring model as the research.</p>
+        </div>
+
+        <div class="formula">HFRI = 0.25·S + 0.25·D + 0.25·E + 0.25·X</div>
+
+        <div class="dim-grid">
+            <div class="dim"><span>S · 25%</span><h3>Savings Strength</h3><p>Savings rate (Y − C) ÷ Y. Can the household create a surplus?</p></div>
+            <div class="dim"><span>D · 25%</span><h3>Debt Sustainability</h3><p>40% debt-to-income, 60% debt-service-to-income. How heavy are loans and EMIs?</p></div>
+            <div class="dim"><span>E · 25%</span><h3>Emergency Coverage</h3><p>Liquid savings ÷ monthly essential spending. How many months are covered?</p></div>
+            <div class="dim"><span>X · 25%</span><h3>Expense Stability</h3><p>Coefficient of variation of monthly spending. How predictable is it?</p></div>
+        </div>
+
+        <div class="calc" id="try">
+            <div class="calc-form">
+                <h3>Try it: estimate your HFRI</h3>
+                <p class="muted">Monthly figures in rupees. Nothing you type leaves this page.</p>
+                <div class="calc-fields">
+                    <label>Monthly income (after tax)<input type="number" min="0" step="1000" value="80000" data-calc="income"></label>
+                    <label>Monthly spending<input type="number" min="0" step="1000" value="50000" data-calc="spending"></label>
+                    <label>Of which essential<input type="number" min="0" step="1000" value="35000" data-calc="essential"></label>
+                    <label>Liquid savings<input type="number" min="0" step="5000" value="150000" data-calc="liquid"></label>
+                    <label>Total outstanding debt<input type="number" min="0" step="10000" value="300000" data-calc="debt"></label>
+                    <label>Monthly EMIs / repayments<input type="number" min="0" step="1000" value="10000" data-calc="debtService"></label>
+                    <label class="span2">How steady is your monthly spending?
+                        <select data-calc="cv">
+                            <option value="0.1">Very steady (varies ~10%)</option>
+                            <option value="0.2" selected>Fairly steady (~20%)</option>
+                            <option value="0.33">Typical (~33%)</option>
+                            <option value="0.5">Lumpy (~50%)</option>
+                        </select>
+                    </label>
+                </div>
+            </div>
+            <div class="calc-result" aria-live="polite">
+                <div class="ring big" data-calc-ring style="--v:0"><strong data-calc-score>–</strong></div>
+                <div class="calc-band" data-calc-band>–</div>
+                <p class="calc-text" data-calc-text></p>
+                <div class="calc-dims" data-calc-dims></div>
+                <div class="calc-links">
+                    <a class="btn btn-light" data-link="calculator" target="_blank" rel="noopener">Full HFRI calculator ↗</a>
+                    <a class="btn btn-outline-light" data-link="research" target="_blank" rel="noopener">Read the research ↗</a>
+                </div>
+            </div>
+        </div>
+        <p class="fineprint">Bands are provisional. They come from the paper's 1,000-household simulation and have not yet been validated on observed household data. HFRI is a measurement framework, not financial advice.</p>
+    </div>
+</section>
+
+<!-- HOW IT WORKS -->
+<section class="section" id="how">
+    <div class="wrap">
+        <div class="section-head">
+            <div class="kicker">How it works</div>
+            <h2>From sign-up to a resilience score in four steps.</h2>
+        </div>
+        <ol class="steps">
+            <li><span>01</span><h3>Create a workspace</h3><p>Sign up with email and create a Personal, Business or Family profile.</p></li>
+            <li><span>02</span><h3>Add your accounts</h3><p>Enter each bank account, wallet and cash balance as it stands today.</p></li>
+            <li><span>03</span><h3>Record real events</h3><p>Income, spending, transfers, investments and loans, one entry per event. EMIs run on their own.</p></li>
+            <li><span>04</span><h3>Read your position</h3><p>Net worth, savings rate, emergency cover and your HFRI score update instantly.</p></li>
+        </ol>
+        <div class="center-cta">
+            <a class="btn btn-primary btn-lg" href="app.html?mode=signup" data-auth-cta>Start now, it's free</a>
+        </div>
+    </div>
+</section>
+
+<!-- METRICS -->
+<section class="section alt">
+    <div class="wrap split">
+        <div>
+            <div class="kicker">Metrics</div>
+            <h2>Thirteen indicators. One honest picture.</h2>
+            <p class="muted">Every metric is defined in the in-app guide, so you always know exactly what a number means and where it came from.</p>
+        </div>
+        <div class="metric-cloud">
+            <span>Net Worth</span><span>Total Cash</span><span>Income</span><span>Expense</span>
+            <span>Savings Rate</span><span>Emergency Cover</span><span class="hl">HFRI</span><span>Status</span>
+            <span>Top Spend</span><span>3M Avg Expense</span><span>Avg Transaction</span><span>Monthly Flow</span><span>MRR</span>
+        </div>
+    </div>
+</section>
+
+<!-- PRIVACY -->
+<section class="section">
+    <div class="wrap">
+        <div class="section-head">
+            <div class="kicker">Your data</div>
+            <h2>You stay in control.</h2>
+        </div>
+        <div class="trust-grid">
+            <div><h3>No bank credentials</h3><p>Arbor never asks for bank logins or card details. You decide what to record.</p></div>
+            <div><h3>Your own account</h3><p>Sign in with email and password through Firebase Authentication. Each workspace belongs to you.</p></div>
+            <div><h3>Transparent maths</h3><p>Every formula is documented in the guide, and the HFRI model is published with its paper and source code.</p></div>
+        </div>
+    </div>
+</section>
+
+<!-- CREATOR -->
+<section class="section alt" id="creator">
+    <div class="wrap creator">
+        <div class="creator-card">
+            <div class="avatar">VA</div>
+            <div>
+                <div class="kicker">Designed &amp; built by</div>
+                <h2 data-creator-name>Vivaan Agarwal</h2>
+                <p class="creator-role" data-creator-role></p>
+                <p class="creator-bio" data-creator-bio></p>
+                <div class="creator-links">
+                    <a class="btn btn-primary" data-link="website" target="_blank" rel="noopener">Visit my website ↗</a>
+                    <a class="btn btn-ghost" data-link="arborPage" target="_blank" rel="noopener">The Arbor story ↗</a>
+                    <a class="btn btn-ghost" data-link="research" target="_blank" rel="noopener">HFRI research ↗</a>
+                </div>
+                <div class="social">
+                    <a data-link="linkedin" target="_blank" rel="noopener">LinkedIn</a>
+                    <a data-link="github" target="_blank" rel="noopener">GitHub</a>
+                    <a data-link="calculator" target="_blank" rel="noopener">HFRI Calculator</a>
+                    <a data-link="projects" target="_blank" rel="noopener">Projects</a>
+                    <a data-link="writing" target="_blank" rel="noopener">Writing</a>
+                </div>
+            </div>
+        </div>
+        <div class="roadmap">
+            <div class="kicker">Roadmap</div>
+            <h3>Where Arbor is heading</h3>
+            <ul>
+                <li>Income, expense and inflation shock modelling</li>
+                <li>Financial goals and projections</li>
+                <li>Mutual fund and stock portfolio tracking</li>
+                <li>NSE/BSE market integration</li>
+                <li>Asset allocation analytics</li>
+                <li>AI-powered financial insights</li>
+            </ul>
+            <a class="text-link" data-link="v3" target="_blank" rel="noopener">Explore Arbor V3 (development) →</a>
+        </div>
+    </div>
+</section>
+
+<!-- FINAL CTA -->
+<section class="final-cta">
+    <div class="wrap">
+        <h2>Know where you stand. Prepare for what's next.</h2>
+        <p>Create your Arbor workspace in under a minute.</p>
+        <div class="hero-ctas center">
+            <a class="btn btn-light btn-lg" href="app.html?mode=signup" data-auth-cta>Get started free</a>
+            <a class="btn btn-outline-light btn-lg" href="app.html" data-auth-login>Log in</a>
+        </div>
+    </div>
+</section>
+
+</main>
+
+<footer class="site-footer">
+    <div class="wrap footer-grid">
+        <div class="footer-brand">
+            <a class="brand" href="#top"><span class="brand-logo" data-logo></span><span class="brand-text"><strong>Arbor</strong><small>The financial operating system</small></span></a>
+            <p>Designed and built by <a data-link="website" target="_blank" rel="noopener">Vivaan Agarwal</a>.</p>
+        </div>
+        <div>
+            <h4>Product</h4>
+            <a href="#features">Features</a>
+            <a href="#resilience">Resilience</a>
+            <a href="#how">How it works</a>
+            <a href="app.html">Log in</a>
+        </div>
+        <div>
+            <h4>Research</h4>
+            <a data-link="research" target="_blank" rel="noopener">HFRI research</a>
+            <a data-link="calculator" target="_blank" rel="noopener">HFRI calculator</a>
+            <a data-link="paper" target="_blank" rel="noopener">HFRI paper (PDF)</a>
+            <a data-link="hfriSource" target="_blank" rel="noopener">HFRI source code</a>
+        </div>
+        <div>
+            <h4>Vivaan Agarwal</h4>
+            <a data-link="website" target="_blank" rel="noopener">Website</a>
+            <a data-link="about" target="_blank" rel="noopener">About</a>
+            <a data-link="linkedin" target="_blank" rel="noopener">LinkedIn</a>
+            <a data-link="github" target="_blank" rel="noopener">GitHub</a>
+        </div>
+    </div>
+    <div class="wrap footer-bottom">
+        <span>© <span data-year></span> Vivaan Agarwal. All rights reserved.</span>
+        <span>Arbor is an educational tool and does not provide financial advice.</span>
+    </div>
+</footer>
+
+<script type="module" src="landing.js"></script>
 </body>
 </html>

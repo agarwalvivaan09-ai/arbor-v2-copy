@@ -11,6 +11,7 @@ import { computeFinancials, addMonths, toDate } from "./modules/engine.js";
 import { deleteAccount } from "./modules/accounts.js";
 import { deleteEMI } from "./modules/emi.js";
 import { HFRI_LINKS } from "./modules/hfri.js";
+import { CREATOR, HFRI_SITE, ARBOR, LOGO_SVG } from "./modules/site.js";
 let state = {
     assets: [],
     liabilities: [],
@@ -110,6 +111,7 @@ async function logoutUser() {
     localStorage.removeItem("selectedProfile");
     localStorage.removeItem("dashboardView");
     await logout();
+    window.location.href = "index.html";
 }
 
 function readableType(type) {
@@ -192,7 +194,7 @@ function renderGuideContent() {
     <div>
         <div class="profile-kicker">Arbor Guide</div>
         <h2>Set up Arbor once, then keep it accurate in five minutes a month.</h2>
-        <p>Follow the steps in order the first time. Each step tells you exactly which button to press, what to type, and what will change on your dashboard. Buttons marked → open the right form for you.</p>
+        <p>Follow the steps in order the first time. Each step tells you exactly which button to press, what to type, and what will change on your dashboard. Buttons marked → open the right form for you, already set to the right entry type.</p>
     </div>
     <div class="guide-checklist">
         <span>1. Create accounts with today's balances</span>
@@ -209,35 +211,35 @@ function renderGuideContent() {
 
 ${section("guide-map", "Orientation", "Find your way around", `
     <div class="guide-table">
-        <div class="guide-table-row"><span>Top bar</span><strong>Add Data</strong><p>Opens the Command Panel on the right. Everything you enter goes through it.</p></div>
-        <div class="guide-table-row"><span>Top bar</span><strong>Profiles</strong><p>Goes back to the profile list so you can open another workspace.</p></div>
-        <div class="guide-table-row"><span>Top bar</span><strong>Logout</strong><p>Signs you out. Your data stays saved in your account.</p></div>
-        <div class="guide-table-row"><span>Tab</span><strong>Overview</strong><p>All metrics, your HFRI score, account balances and recent activity.</p></div>
-        <div class="guide-table-row"><span>Tab</span><strong>Accounts</strong><p>Your accounts, assets, loans and EMI schedules with their current values.</p></div>
-        <div class="guide-table-row"><span>Tab</span><strong>Activity</strong><p>The full ledger of every entry, newest first. Delete entries here with ×.</p></div>
-        <div class="guide-table-row"><span>Command Panel</span><strong>Add Activity</strong><p>Record income, spending, transfers, investments and loans.</p></div>
-        <div class="guide-table-row"><span>Command Panel</span><strong>Add Account</strong><p>Create a new place where money is kept. Close the panel with × or by clicking outside it.</p></div>
+        <div class="guide-table-row"><span>Sidebar</span><strong>Workspace · Switch</strong><p>Shows the workspace you're in. Press Switch to go back to your workspaces and open or create another.</p></div>
+        <div class="guide-table-row"><span>Sidebar</span><strong>Overview</strong><p>Net worth, HFRI, all metrics, the cash-flow chart, where your money goes, and recent activity.</p></div>
+        <div class="guide-table-row"><span>Sidebar</span><strong>Activity</strong><p>The full ledger, newest first. Filter by type, search, and delete entries with ×.</p></div>
+        <div class="guide-table-row"><span>Sidebar</span><strong>Accounts</strong><p>Your balance sheet: cash accounts, assets, liabilities and EMI schedules.</p></div>
+        <div class="guide-table-row"><span>Sidebar</span><strong>Resilience</strong><p>Your HFRI score, its four dimensions, the inputs used, and the score bands.</p></div>
+        <div class="guide-table-row"><span>Sidebar</span><strong>Guide</strong><p>This manual. Use the buttons at the top to jump to any step.</p></div>
+        <div class="guide-table-row"><span>Top right</span><strong>+ Add entry</strong><p>Opens the Add data panel. Everything you record goes through it. Close it with × or by clicking outside.</p></div>
+        <div class="guide-table-row"><span>Top right</span><strong>Log out</strong><p>Signs you out and returns to the Arbor home page. Your data stays saved.</p></div>
     </div>
 `)}
 
 ${section("guide-setup", "Step 1", "Create and open a profile", `
     <p>A profile is a separate workspace. Money in one profile never mixes with another, so use one for Personal, one for Business, and so on.</p>
     ${steps([
-        "Press <strong>Profiles</strong> in the top bar to reach the profile list.",
-        "Under <strong>Create Profile</strong>, type a name such as <em>Personal</em>.",
-        "Choose <strong>Personal</strong>, <strong>Business</strong> or <strong>Family</strong>, then press <strong>Create Profile</strong>.",
-        "Click the profile card to open it. Arbor creates a starter account called <strong>Main Account</strong> with a ₹0 balance."
+        "Press <strong>Switch</strong> next to the workspace name in the sidebar to reach your workspaces. (New users land there right after signing up.)",
+        "Under <strong>New workspace</strong>, type a name such as <em>Personal</em>.",
+        "Choose <strong>Personal</strong>, <strong>Business</strong> or <strong>Family</strong>, then press <strong>Create workspace</strong>.",
+        "Click the workspace card to open it. Arbor creates a starter account called <strong>Main Account</strong> with a ₹0 balance."
     ])}
 `)}
 
 ${section("guide-accounts", "Step 2", "Add every place your money is kept", `
     <p>An account is a real place that holds money: a bank account, the cash in your wallet, Paytm or another wallet. It is <strong>not</strong> a category like Rent or Food.</p>
     ${steps([
-        "Press <strong>Add Data</strong>, then the <strong>Add Account</strong> tab.",
+        "Press <strong>+ Add entry</strong> (top right), then the <strong>Account</strong> tab.",
         "Type the account name exactly as you know it, e.g. <em>HDFC Savings</em>.",
         "In <strong>Current Balance</strong>, type what the account holds <strong>today</strong>. Arbor counts forward from this number.",
         "Pick <strong>Cash</strong>, <strong>Bank</strong> or <strong>Wallet</strong>. For Bank, also pick Savings or Current.",
-        "Press <strong>Add Account</strong>. Repeat for every account you use.",
+        "Press <strong>Create account</strong>. Repeat for every account you use.",
         "Open the <strong>Accounts</strong> tab and check each balance matches reality."
     ])}
     ${note("The starter Main Account has a ₹0 balance. If you don't need it, delete it with × before recording anything in it. An account with entries can't be deleted, so its history stays correct.")}
@@ -247,14 +249,14 @@ ${section("guide-accounts", "Step 2", "Add every place your money is kept", `
 ${section("guide-daily", "Step 3", "Record income and spending", `
     <p>Record each real event once, on the day it happened. All entries use the same form:</p>
     ${steps([
-        "Press <strong>Add Data</strong>. The <strong>Add Activity</strong> tab opens.",
-        "Choose the <strong>Activity Type</strong> (Income or Expense).",
-        "Choose the <strong>subtype</strong> in the first drop-down. For Income: salary, business, interest, dividend or other. For Expense: <em>fixed</em> (rent, EMIs you track as bills, school fees), <em>variable</em> (groceries, fuel, utilities), <em>discretionary</em> (eating out, shopping, travel) or <em>tax</em>.",
+        "Press <strong>+ Add entry</strong> (top right). The <strong>Activity</strong> tab opens.",
+        "Under <strong>What happened?</strong>, choose Income or Expense.",
+        "Choose the <strong>Subtype</strong>. For Income: salary, business, interest, dividend or other. For Expense: <em>fixed</em> (rent, EMIs you track as bills, school fees), <em>variable</em> (groceries, fuel, utilities), <em>discretionary</em> (eating out, shopping, travel) or <em>tax</em>.",
         "Type the <strong>Amount</strong> in rupees, numbers only, no commas.",
         "Type a short <strong>Description</strong>. Use the same word every time (always \"Rent\", never \"House rent\").",
         "Pick the <strong>account</strong> the money went into or came out of.",
         "Pick the <strong>date</strong>. If you leave it empty, Arbor uses today.",
-        "Press <strong>Add</strong>. The dashboard updates immediately."
+        "Press <strong>Save entry</strong>. The dashboard updates immediately."
     ])}
     ${note("Subtypes matter: salary feeds MRR, and fixed and variable expenses count as <strong>essential spending</strong> in your HFRI score. Discretionary spending does not.")}
     <div class="guide-actions">${tryIt("Add income", "activity", "income")}${tryIt("Add an expense", "activity", "expense")}</div>
@@ -262,10 +264,10 @@ ${section("guide-daily", "Step 3", "Record income and spending", `
 
 ${section("guide-transfer", "Step 4", "Move money between your own accounts", `
     ${steps([
-        "Press <strong>Add Data</strong> and choose <strong>Transfer</strong>.",
+        "Press <strong>+ Add entry</strong> and choose <strong>Transfer</strong>.",
         "Type the amount and a description such as <em>ATM withdrawal</em>.",
         "Pick the <strong>From account</strong> (money leaves) and the <strong>To account</strong> (money arrives).",
-        "Press <strong>Add</strong>."
+        "Press <strong>Save entry</strong>."
     ])}
     ${note("A transfer is never income or an expense. Don't record an ATM withdrawal as an expense, or your spending will be counted twice: once at the ATM and again when you spend the cash.")}
     <div class="guide-actions">${tryIt("Add a transfer", "activity", "transfer")}</div>
@@ -274,11 +276,11 @@ ${section("guide-transfer", "Step 4", "Move money between your own accounts", `
 ${section("guide-assets", "Step 5", "Investments and other assets", `
     <p><strong>Buying</strong>: mutual funds, shares, gold, property, a vehicle.</p>
     ${steps([
-        "Press <strong>Add Data</strong> and choose <strong>Buy Asset</strong>.",
+        "Press <strong>+ Add entry</strong> and choose <strong>Buy Asset</strong>.",
         "Type the price paid as the Amount and the asset name as the Description (e.g. <em>Nifty 50 Index Fund</em>). The description becomes the asset's name.",
         "Pick the account you paid from, and the purchase date.",
         "Optional: type an expected yearly <strong>Return %</strong> (empty = 5%, 0 is allowed). Choose <strong>Appreciating</strong> for things that grow, <strong>Depreciating</strong> for things like vehicles and electronics. Choose Simple or Compound growth.",
-        "Press <strong>Add</strong>. Cash goes down and Assets go up by the same amount."
+        "Press <strong>Save entry</strong>. Cash goes down and Assets go up by the same amount."
     ])}
     <p><strong>Selling</strong>: choose <strong>Sell Asset</strong>, pick the asset from the drop-down, type the amount you received, and pick the receiving account. A partial sale reduces the asset's value by the amount sold.</p>
     ${note("An asset's value is an estimate from the return % you entered. To bring it in line with the market, sell it in Arbor at today's value, then buy it again at that value.")}
@@ -288,15 +290,15 @@ ${section("guide-assets", "Step 5", "Investments and other assets", `
 ${section("guide-loans", "Step 6", "Loans and EMIs", `
     <p><strong>Taking a loan</strong>: home loan, car loan, personal loan, money borrowed from family.</p>
     ${steps([
-        "Press <strong>Add Data</strong> and choose <strong>New Loan</strong>.",
+        "Press <strong>+ Add entry</strong> and choose <strong>New Loan</strong>.",
         "Type the amount borrowed and a name for the loan (e.g. <em>Car Loan SBI</em>).",
         "Pick the account the money arrived in, and the loan date.",
         "Type the yearly <strong>Interest %</strong> (empty = 8%, 0 is allowed) and choose Simple or Compound.",
         "If you repay in fixed monthly installments, fill in <strong>Tenure (Months)</strong> and <strong>EMI Amount</strong>. Arbor then creates an EMI schedule. Leave both empty for a loan without EMIs.",
-        "Press <strong>Add</strong>. Cash and Liabilities both go up, so Net Worth doesn't change."
+        "Press <strong>Save entry</strong>. Cash and Liabilities both go up, so Net Worth doesn't change."
     ])}
     <p><strong>How EMIs work</strong>: the first EMI is due one month after the loan date. Every EMI whose date has arrived is taken from the chosen account and from the loan automatically. Arbor stops when the tenure ends or the loan is fully paid. The Accounts tab shows how many have been paid and the next due date.</p>
-    <p><strong>Extra or one-off payments</strong>: choose <strong>Repay Loan</strong>, pick the loan, type the amount, pick the account, then press Add.</p>
+    <p><strong>Extra or one-off payments</strong>: choose <strong>Repay Loan</strong>, pick the loan, type the amount, pick the account, then press Save entry.</p>
     ${note("Never record a scheduled EMI with Repay Loan. Arbor already counts it, and it would be paid twice.")}
     <div class="guide-actions">${tryIt("Add a loan", "activity", "liability_add")}${tryIt("Repay a loan", "activity", "liability_payment")}</div>
 `)}
@@ -304,10 +306,10 @@ ${section("guide-loans", "Step 6", "Loans and EMIs", `
 ${section("guide-tax", "Step 7", "Tax: you record it, Arbor never calculates it", `
     <p>Arbor doesn't estimate tax, because every person's situation is different. When you actually pay tax (TDS on salary, advance tax, property tax, GST you bear), record it yourself:</p>
     ${steps([
-        "Press <strong>Add Data</strong> and choose <strong>Expense</strong>.",
+        "Press <strong>+ Add entry</strong> and choose <strong>Expense</strong>.",
         "In the subtype drop-down choose <strong>tax</strong>.",
         "Type the amount paid and a description such as <em>Advance tax Q2</em> or <em>TDS – March</em>.",
-        "Pick the account it was paid from and the date, then press <strong>Add</strong>."
+        "Pick the account it was paid from and the date, then press <strong>Save entry</strong>."
     ])}
     ${note("If your salary arrives after TDS is deducted, record only the amount you received as Income. You don't need a tax entry for TDS you never received. Tax entries count in Expense, and the HFRI subtracts them from income to get disposable income.")}
     <div class="guide-actions">${tryIt("Record a tax payment", "activity", "expense")}</div>
@@ -361,7 +363,7 @@ ${section("guide-mistakes", "Corrections", "Fixing mistakes", `
     ${steps([
         "Open the <strong>Activity</strong> tab and find the entry.",
         "Press <strong>×</strong> on the right and confirm.",
-        "Add the corrected entry with <strong>Add Data</strong>."
+        "Add the corrected entry with <strong>+ Add entry</strong>."
     ])}
     <div class="guide-metric-list">
         <div><strong>Buy Asset entry</strong><span>Deleting it also deletes the asset. If you've already recorded a sale of that asset, delete the sale first.</span></div>
@@ -403,54 +405,54 @@ ${section("guide-trouble", "Help", "Troubleshooting: when a number looks wrong",
 function renderHFRIPanel(hfri) {
     if (!hfri?.available) {
         return `
-<div class="section hfri-panel">
-    <h2>Financial Resilience (HFRI)</h2>
-    <div class="content">
-        <div class="empty-state">${escapeHTML(hfri?.reason || "Not enough data yet.")} <button class="link-btn" data-go-view="guide">How HFRI works</button></div>
-    </div>
-</div>`;
+<section class="card hfri-panel">
+    <div class="card-head"><h2>Financial Resilience (HFRI)</h2></div>
+    <div class="empty"><strong>Not enough data yet</strong><p>${escapeHTML(hfri?.reason || "Add income and expenses to calculate HFRI.")}</p>
+    <button class="btn btn-ghost btn-sm" data-go-view="guide" data-guide-target="guide-hfri">How HFRI works</button></div>
+</section>`;
     }
 
     const { scores, indicators, inputs, band, total, months } = hfri;
     const pct = v => `${(v * 100).toFixed(1)}%`;
     const ec = indicators.ec === Infinity ? "∞" : `${indicators.ec.toFixed(1)} months`;
     const dims = [
-        ["Savings Strength", scores.S, `Savings rate ${pct(indicators.sr)}`],
-        ["Debt Sustainability", scores.D, `Debt ${pct(indicators.dti)} of income • repayments ${pct(indicators.dsti)} of income`],
-        ["Emergency Coverage", scores.E, `${ec} of essential spending`],
-        ["Expense Stability", scores.X, `Spending variation (CV) ${indicators.cv.toFixed(2)}`]
+        ["Savings Strength", "S", scores.S, `Savings rate ${pct(indicators.sr)}`],
+        ["Debt Sustainability", "D", scores.D, `Debt ${pct(indicators.dti)} of income · repayments ${pct(indicators.dsti)}`],
+        ["Emergency Coverage", "E", scores.E, `${ec} of essential spending`],
+        ["Expense Stability", "X", scores.X, `Spending variation (CV) ${indicators.cv.toFixed(2)}`]
     ];
 
     return `
-<div class="section hfri-panel">
-    <h2>Financial Resilience (HFRI)</h2>
-    <div class="content">
-        <div class="hfri-head band-${band.key}">
-            <div class="hfri-score"><strong>${total.toFixed(1)}</strong><span>/ 100</span></div>
-            <div>
-                <div class="hfri-band">${escapeHTML(band.label)}</div>
-                <p>${escapeHTML(band.text)} Based on your last ${months} month${months === 1 ? "" : "s"} of activity. Bands are provisional.</p>
-            </div>
-        </div>
-        <div class="hfri-dims">
-            ${dims.map(([label, score, detail]) => `
-            <div class="hfri-dim">
-                <div class="hfri-dim-top"><span>${label}</span><strong>${score.toFixed(0)}</strong></div>
-                <div class="hfri-bar"><i style="width:${Math.max(0, Math.min(100, score)).toFixed(1)}%"></i></div>
-                <small>${detail}</small>
-            </div>`).join("")}
-        </div>
-        <div class="hfri-inputs">
-            Inputs: disposable income ${formatMoney(inputs.income)}/yr • spending ${formatMoney(inputs.spending)}/yr •
-            debt ${formatMoney(inputs.debt)} • repayments ${formatMoney(inputs.debtService)}/yr •
-            liquid cash ${formatMoney(inputs.liquid)} • essential ${formatMoney(inputs.essentialMonthly)}/mo
-        </div>
-        <div class="guide-actions">
-            <a class="guide-try" href="${HFRI_LINKS.calculator}" target="_blank" rel="noopener">Try what-ifs in the HFRI Calculator →</a>
-            <button class="guide-try ghost" data-go-view="guide">How HFRI works →</button>
+<section class="card hfri-panel">
+    <div class="hfri-head">
+        <div class="ring lg" data-band="${band.key}" style="--v:${total.toFixed(1)}"><strong>${total.toFixed(1)}</strong></div>
+        <div>
+            <div class="card-label">Household Financial Resilience Index</div>
+            <div class="hfri-band band-${band.key}">${escapeHTML(band.label)}</div>
+            <p>${escapeHTML(band.text)} Based on your last ${months} month${months === 1 ? "" : "s"} of activity.</p>
         </div>
     </div>
-</div>`;
+    <div class="hfri-dims">
+        ${dims.map(([label, key, score, detail]) => `
+        <div class="hfri-dim">
+            <div class="hfri-dim-top"><span><em>${key}</em>${label}</span><strong>${score.toFixed(0)}</strong></div>
+            <div class="progress"><i style="width:${Math.max(0, Math.min(100, score)).toFixed(1)}%"></i></div>
+            <small>${detail}</small>
+        </div>`).join("")}
+    </div>
+    <div class="hfri-inputs">
+        <div><span>Disposable income</span><strong>${formatMoney(inputs.income)}/yr</strong></div>
+        <div><span>Spending</span><strong>${formatMoney(inputs.spending)}/yr</strong></div>
+        <div><span>Debt</span><strong>${formatMoney(inputs.debt)}</strong></div>
+        <div><span>Repayments</span><strong>${formatMoney(inputs.debtService)}/yr</strong></div>
+        <div><span>Liquid cash</span><strong>${formatMoney(inputs.liquid)}</strong></div>
+        <div><span>Essential spend</span><strong>${formatMoney(inputs.essentialMonthly)}/mo</strong></div>
+    </div>
+    <div class="btn-row">
+        <a class="btn btn-primary btn-sm" href="${HFRI_LINKS.calculator}" target="_blank" rel="noopener">Try what-ifs in the HFRI Calculator ↗</a>
+        <button class="btn btn-ghost btn-sm" data-go-view="guide" data-guide-target="guide-hfri">How it's calculated</button>
+    </div>
+</section>`;
 }
 
 // ==========================
@@ -465,78 +467,58 @@ async function renderProfiles(user) {
     // drop the dashboard's click handler so it can't act on this screen
     document.body.onclick = null;
 
+    const typeHint = {
+        personal: "Your own income, spending, savings and loans.",
+        business: "A business or freelance practice, kept separate from personal money.",
+        family: "Shared household finances for the whole family."
+    };
+
     document.body.innerHTML = `
-    <div class="profile-shell">
-        <header class="profile-topbar">
-            <div>
-                <div class="brand-mark">Arbor</div>
-                <p>${escapeHTML(user.email)}</p>
+    <div class="ws-shell">
+        <header class="ws-top">
+            <a class="sb-brand dark" href="index.html">${LOGO_SVG}<span><strong>Arbor</strong><small>by Vivaan Agarwal</small></span></a>
+            <div class="top-actions">
+                <div class="user-chip"><span>${escapeHTML((user.email || "?")[0].toUpperCase())}</span><em>${escapeHTML(user.email)}</em></div>
+                <button id="logout" class="btn btn-ghost">Log out</button>
             </div>
-            <button id="logout" class="top-action danger-action">Logout</button>
         </header>
 
-        <main class="profile-layout">
-            <section class="profile-hero-panel">
-                <div class="profile-kicker">Workspace Selection</div>
-                <h1>Choose the financial workspace you want to manage.</h1>
-                <p>Keep personal, business, and family finances separate while using the same account, metric, and ledger system.</p>
-                <div class="profile-stats">
-                    <div><strong>${profiles.length}</strong><span>Profiles</span></div>
-                    <div><strong>3</strong><span>Workspace Types</span></div>
-                </div>
-            </section>
+        <main class="ws-main">
+            <div class="ws-intro">
+                <div class="eyebrow-sm">Workspaces</div>
+                <h1>${profiles.length ? "Choose a workspace" : "Create your first workspace"}</h1>
+                <p>Each workspace has its own accounts, ledger, metrics and HFRI score. Keep personal, business and family money apart.</p>
+            </div>
 
-            <section class="profile-card-panel">
-                <div class="panel-title-row">
-                    <div>
-                        <h2>Your Profiles</h2>
-                        <p>Select a workspace to open its dashboard.</p>
-                    </div>
-                </div>
+            <div class="ws-grid">
+                ${profiles.map(p => `
+                <button class="ws-card profile-card" data-id="${p.id}">
+                    <span class="ws-avatar">${escapeHTML((p.name || "P")[0].toUpperCase())}</span>
+                    <span class="ws-name">${escapeHTML(p.name)}</span>
+                    <span class="ws-type">${escapeHTML(p.type || "personal")}</span>
+                    <span class="ws-open">Open workspace →</span>
+                </button>`).join("")}
 
-                <div class="profiles-grid">
-                    ${profiles.length === 0
-        ? `<div class="empty-state">No profiles yet. Create one below to start tracking.</div>`
-        : profiles.map(p => `
-                        <button class="profile-card" data-id="${p.id}">
-                            <div class="profile-icon">${p.name ? escapeHTML(p.name[0].toUpperCase()) : "P"}</div>
-                            <div class="profile-info">
-                                <div class="profile-name">${escapeHTML(p.name)}</div>
-                                <div class="profile-sub">${escapeHTML(p.type)}</div>
-                            </div>
-                            <span>Open</span>
-                        </button>
-                    `).join("")}
-                </div>
-
-                <div class="create-profile-panel">
-                    <div class="panel-title-row">
-                        <div>
-                            <h2>Create Profile</h2>
-                            <p>Use a clear name like Personal, Studio, Family, or Startup.</p>
-                        </div>
-                    </div>
-
-                    <input id="profileName" placeholder="Profile name" />
-                    <div id="profileMessage" class="auth-message" role="status"></div>
-
-                    <div class="select profile-type-toggle">
+                <div class="ws-card ws-new">
+                    <div class="ws-new-head"><span class="ws-avatar plus">+</span><strong>New workspace</strong></div>
+                    <input id="profileName" placeholder="Name, e.g. Personal" aria-label="Workspace name" />
+                    <div class="segmented select profile-type-toggle">
                         <button id="personalBtn" class="active">Personal</button>
                         <button id="businessBtn">Business</button>
                         <button id="familyBtn">Family</button>
                     </div>
-
-                    <button id="createProfile" class="primary">Create Profile</button>
+                    <p class="field-help" id="typeHint">${typeHint.personal}</p>
+                    <div id="profileMessage" class="auth-message" role="status"></div>
+                    <button id="createProfile" class="btn btn-primary btn-block">Create workspace</button>
                 </div>
-            </section>
+            </div>
         </main>
+
+        <footer class="app-footer center">
+            <span>Arbor ${ARBOR.version} · Designed and built by <a href="${CREATOR.website}" target="_blank" rel="noopener">Vivaan Agarwal</a> · <a href="${HFRI_SITE.calculator}" target="_blank" rel="noopener">HFRI Calculator</a></span>
+        </footer>
     </div>
     `;
-
-
-
-
-
 
     // profile type toggle
     ["personal","business","family"].forEach(type => {
@@ -544,6 +526,7 @@ async function renderProfiles(user) {
             selectedType = type;
             document.querySelectorAll(".select button").forEach(b => b.classList.remove("active"));
             document.getElementById(type+"Btn").classList.add("active");
+            document.getElementById("typeHint").textContent = typeHint[type];
         };
     });
 
@@ -662,34 +645,14 @@ const {
     lastMonthFlow,
     hfri
 } = metrics;
+const VIEWS = ["overview", "activity", "accounts", "resilience", "guide"];
 let activeView = localStorage.getItem("dashboardView") || "overview";
-if (!["overview", "accounts", "activity", "guide"].includes(activeView)) {
-    activeView = "overview";
-}
-const accountRows = accounts.map(a => {
-    const balance = accountBalances[a.id] || 0;
-    const transactionCount = allTransactions.filter(t => t.accountId === a.id || t.toAccountId === a.id).length;
-    const typeLabel = readableType(a.type);
-    const details = a.type === "bank" && a.subtype
-        ? `${typeLabel} • ${a.subtype}${a.rate ? ` • ${a.rate}% interest` : ""}`
-        : typeLabel;
+if (!VIEWS.includes(activeView)) activeView = "overview";
 
-    return `
-        <div class="list-item account-item">
-            <div>
-                <div class="title">${escapeHTML(a.name)}</div>
-                <div class="sub">${escapeHTML(details)} • Opening ${formatMoney(a.openingBalance || 0)} • ${transactionCount} entries</div>
-            </div>
-            <div class="item-actions">
-                <strong class="${balance >= 0 ? "green" : "red"}">${formatMoney(balance)}</strong>
-                <button class="delete-account" data-id="${a.id}" title="Delete account">×</button>
-            </div>
-        </div>
-    `;
-}).join("");
+const profiles = await getProfiles(user.uid);
+const profile = profiles.find(p => p.id === profileId) || { name: "Workspace", type: "personal" };
 
 const accountNameById = Object.fromEntries(accounts.map(a => [a.id, a.name]));
-
 const todayDate = new Date();
 
 function transactionAccountLabel(t) {
@@ -699,380 +662,487 @@ function transactionAccountLabel(t) {
 }
 
 function amountClass(type) {
-    if (type === "transfer") return "";
-    return ["income", "asset_sell", "liability_add"].includes(type) ? "green" : "red";
+    if (type === "transfer") return "neutral";
+    return ["income", "asset_sell", "liability_add"].includes(type) ? "pos" : "neg";
 }
 
-const transactionRows = transactions.length
-    ? transactions.map(t => `
-        <div class="list-item">
-            <div>
-                <div class="title">${escapeHTML(t.category || "Untitled transaction")}</div>
-                <div class="sub">${readableType(t.type)} • ${t.subtype ? `${escapeHTML(t.subtype)} • ` : ""}${transactionAccountLabel(t)} • ${t.date ? new Date(t.date).toLocaleDateString() : "No date"}${toDate(t.date) > todayDate ? " • scheduled" : ""}</div>
-            </div>
-            <div class="item-actions">
-                <strong class="${amountClass(t.type)}">${formatMoney(t.amount)}</strong>
-                <button class="delete" data-id="${t.id}" title="Delete transaction">×</button>
-            </div>
-        </div>
-    `).join("")
-    : `<div class="empty-state">No transactions yet. Add income, expenses, assets, or loans from the Add panel.</div>`;
+function signedAmount(t) {
+    const cls = amountClass(t.type);
+    const sign = cls === "pos" ? "+" : cls === "neg" ? "−" : "";
+    return `${sign}${formatMoney(t.amount)}`;
+}
 
-const assetRows = assets.length
-    ? assets.map(a => `
-        <div class="list-item">
-            <div>
-                <div class="title">${escapeHTML(a.name)}</div>
-                <div class="sub">${escapeHTML(readableType(a.type))} • ${escapeHTML(a.rate ?? 5)}% • ${escapeHTML(a.compounding || "simple")}${toDate(a.startDate) > todayDate ? ` • starts ${formatDate(a.startDate)}` : ""}</div>
-            </div>
-            <div class="item-actions">
-                <strong>${formatMoney(getAssetCurrentValue(a))}</strong>
-                <button class="delete-asset" data-id="${a.id}" title="Delete asset">×</button>
-            </div>
-        </div>
-    `).join("")
-    : `<div class="empty-state">No assets yet. Use Buy asset when you purchase an investment or valuable item.</div>`;
+const TYPE_GROUP = {
+    income: "income", expense: "expense", transfer: "transfer",
+    asset_buy: "invest", asset_sell: "invest",
+    liability_add: "loan", liability_payment: "loan"
+};
 
-const liabilityRows = liabilities.length
-    ? liabilities.map(l => `
-        <div class="list-item">
-            <div>
-                <div class="title">${escapeHTML(l.name)}</div>
-                <div class="sub">${escapeHTML(l.rate ?? 8)}% • ${escapeHTML(l.type || "simple")} interest${toDate(l.startDate) > todayDate ? ` • starts ${formatDate(l.startDate)}` : ""}</div>
-            </div>
-            <div class="item-actions">
-                <strong class="red">${formatMoney(getLiabilityOutstanding(l))}</strong>
-                <button class="delete-liability" data-id="${l.id}" title="Delete liability">×</button>
-            </div>
-        </div>
-    `).join("")
-    : `<div class="empty-state">No loans or liabilities yet. Use New loan when money is borrowed.</div>`;
+function typeBadge(type) {
+    return `<span class="badge badge-${TYPE_GROUP[type] || "other"}">${readableType(type)}</span>`;
+}
 
-function emiSummary(e) {
+function shortDate(value) {
+    const d = toDate(value);
+    return d ? d.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "—";
+}
+
+function ledgerRow(t) {
+    const scheduled = toDate(t.date) > todayDate;
+    const search = `${t.category || ""} ${t.subtype || ""} ${readableType(t.type)} ${accountNameById[t.accountId] || ""} ${accountNameById[t.toAccountId] || ""}`.toLowerCase();
+    return `
+    <tr data-group="${TYPE_GROUP[t.type] || "other"}" data-search="${escapeHTML(search)}">
+        <td class="nowrap muted">${shortDate(t.date)}${scheduled ? `<span class="badge badge-scheduled">Scheduled</span>` : ""}</td>
+        <td><div class="cell-title">${escapeHTML(t.category || "Untitled")}</div>${t.subtype ? `<div class="cell-sub">${escapeHTML(t.subtype)}</div>` : ""}</td>
+        <td>${typeBadge(t.type)}</td>
+        <td class="muted">${transactionAccountLabel(t)}</td>
+        <td class="num ${amountClass(t.type)}">${signedAmount(t)}</td>
+        <td class="actions"><button class="row-delete delete" data-id="${t.id}" title="Delete entry" aria-label="Delete entry">×</button></td>
+    </tr>`;
+}
+
+const ledgerTable = rows => rows.length ? `
+    <div class="table-wrap"><table class="table">
+        <thead><tr><th>Date</th><th>Description</th><th>Type</th><th>Account</th><th class="num">Amount</th><th></th></tr></thead>
+        <tbody>${rows.map(ledgerRow).join("")}</tbody>
+    </table></div>`
+    : emptyState("No entries yet", "Record income, spending, transfers, investments or loans to start your ledger.", `<button class="btn btn-primary btn-sm" data-open-panel="activity">Add your first entry</button>`);
+
+function emptyState(title, text, action = "") {
+    return `<div class="empty"><strong>${title}</strong><p>${text}</p>${action}</div>`;
+}
+
+const accountCards = accounts.map(a => {
+    const balance = accountBalances[a.id] || 0;
+    const count = allTransactions.filter(t => t.accountId === a.id || t.toAccountId === a.id).length;
+    const sub = a.type === "bank" && a.subtype ? `${readableType(a.type)} · ${a.subtype}` : readableType(a.type);
+    return `
+    <div class="acct-card">
+        <div class="acct-top">
+            <span class="acct-icon">${escapeHTML((a.name || "?")[0].toUpperCase())}</span>
+            <button class="row-delete delete-account" data-id="${a.id}" title="Delete account" aria-label="Delete account">×</button>
+        </div>
+        <div class="acct-name">${escapeHTML(a.name)}</div>
+        <div class="acct-sub">${escapeHTML(sub)}${a.rate ? ` · ${escapeHTML(a.rate)}%` : ""}</div>
+        <div class="acct-balance ${balance < 0 ? "neg" : ""}">${formatMoney(balance)}</div>
+        <div class="acct-meta">Opening ${formatMoney(a.openingBalance || 0)} · ${count} ${count === 1 ? "entry" : "entries"}</div>
+    </div>`;
+}).join("");
+
+const accountList = accounts.map(a => {
+    const balance = accountBalances[a.id] || 0;
+    return `<div class="mini-row"><span class="acct-icon sm">${escapeHTML((a.name || "?")[0].toUpperCase())}</span><div><div class="cell-title">${escapeHTML(a.name)}</div><div class="cell-sub">${escapeHTML(readableType(a.type))}</div></div><strong class="${balance < 0 ? "neg" : ""}">${formatMoney(balance)}</strong></div>`;
+}).join("");
+
+const assetTable = assets.length ? `
+    <div class="table-wrap"><table class="table">
+        <thead><tr><th>Asset</th><th>Growth</th><th>Since</th><th class="num">Current value</th><th></th></tr></thead>
+        <tbody>${assets.map(a => `
+        <tr>
+            <td><div class="cell-title">${escapeHTML(a.name)}</div><div class="cell-sub">${escapeHTML(readableType(a.type))}</div></td>
+            <td class="muted">${escapeHTML(a.rate ?? 5)}% ${escapeHTML(a.compounding || "simple")}</td>
+            <td class="muted nowrap">${shortDate(a.startDate)}${toDate(a.startDate) > todayDate ? `<span class="badge badge-scheduled">Starts later</span>` : ""}</td>
+            <td class="num">${formatMoney(getAssetCurrentValue(a))}</td>
+            <td class="actions"><button class="row-delete delete-asset" data-id="${a.id}" title="Delete asset" aria-label="Delete asset">×</button></td>
+        </tr>`).join("")}</tbody>
+    </table></div>`
+    : emptyState("No assets yet", "Use Buy Asset when you purchase an investment or something of value.", `<button class="btn btn-ghost btn-sm" data-open-panel="activity" data-txn-type="asset_buy">Buy an asset</button>`);
+
+const liabilityTable = liabilities.length ? `
+    <div class="table-wrap"><table class="table">
+        <thead><tr><th>Loan</th><th>Interest</th><th>Borrowed</th><th class="num">Outstanding</th><th></th></tr></thead>
+        <tbody>${liabilities.map(l => `
+        <tr>
+            <td><div class="cell-title">${escapeHTML(l.name)}</div><div class="cell-sub">${shortDate(l.startDate)}</div></td>
+            <td class="muted">${escapeHTML(l.rate ?? 8)}% ${escapeHTML(l.type || "simple")}</td>
+            <td class="muted">${formatMoney(l.value)}</td>
+            <td class="num neg">${formatMoney(getLiabilityOutstanding(l))}</td>
+            <td class="actions"><button class="row-delete delete-liability" data-id="${l.id}" title="Delete liability" aria-label="Delete liability">×</button></td>
+        </tr>`).join("")}</tbody>
+    </table></div>`
+    : emptyState("No loans", "Use New Loan when money is borrowed. Add a tenure and EMI to schedule repayments.", `<button class="btn btn-ghost btn-sm" data-open-panel="activity" data-txn-type="liability_add">Add a loan</button>`);
+
+function emiCells(e) {
     const info = metrics.emiStatus[e.id] || {};
-    const progress = info.tenure
-        ? `${info.paidCount || 0}/${info.tenure} paid`
-        : `${info.paidCount || 0} paid`;
-    const next = info.completed
-        ? "Completed"
-        : `Next due ${formatDate(info.nextDue || e.firstDate || e.nextDate)}`;
-    const account = accountNameById[e.accountId] ? ` • from ${escapeHTML(accountNameById[e.accountId])}` : " • account missing";
-    return `${next} • ${progress}${account}`;
+    const paid = info.paidCount || 0;
+    const total = info.tenure;
+    const pct = total ? Math.min(100, (paid / total) * 100) : 0;
+    const next = info.completed ? `<span class="badge badge-income">Completed</span>` : shortDate(info.nextDue || e.firstDate || e.nextDate);
+    return `
+        <td><div class="cell-title">${escapeHTML(e.name || "EMI")}</div><div class="cell-sub">${accountNameById[e.accountId] ? `from ${escapeHTML(accountNameById[e.accountId])}` : "account missing"}</div></td>
+        <td class="num">${formatMoney(e.amount)}</td>
+        <td><div class="progress"><i style="width:${pct.toFixed(0)}%"></i></div><div class="cell-sub">${paid}${total ? ` of ${total}` : ""} paid</div></td>
+        <td class="nowrap">${next}</td>`;
 }
 
-const emiRows = state.emis.length
-    ? state.emis.map(e => `
-        <div class="list-item">
-            <div>
-                <div class="title">${escapeHTML(e.name || "EMI")}</div>
-                <div class="sub">${emiSummary(e)}</div>
-            </div>
-            <div class="item-actions">
-                <strong class="red">${formatMoney(e.amount)}</strong>
-                <button class="delete-emi" data-id="${e.id}" title="Delete EMI">×</button>
-            </div>
+const emiTable = state.emis.length ? `
+    <div class="table-wrap"><table class="table">
+        <thead><tr><th>Schedule</th><th class="num">EMI</th><th>Progress</th><th>Next due</th><th></th></tr></thead>
+        <tbody>${state.emis.map(e => `<tr>${emiCells(e)}<td class="actions"><button class="row-delete delete-emi" data-id="${e.id}" title="Delete EMI" aria-label="Delete EMI">×</button></td></tr>`).join("")}</tbody>
+    </table></div>`
+    : emptyState("No EMI schedules", "Add a tenure and EMI amount when you create a loan, and Arbor pays it every month automatically.");
+
+// ---------- charts ----------
+function monthLabel(key) {
+    const [y, m] = key.split("-").map(Number);
+    return new Date(Date.UTC(y, m - 1, 1)).toLocaleDateString("en-IN", { month: "short", timeZone: "UTC" });
+}
+
+function cashFlowChart(series) {
+    const max = Math.max(1, ...series.flatMap(s => [s.income, s.spending]));
+    const W = 560, H = 200, padB = 26, padT = 10, colW = W / series.length, barW = Math.min(22, colW / 3.2);
+    const y = v => padT + (H - padB - padT) * (1 - v / max);
+    const grid = [0.25, 0.5, 0.75, 1].map(f => `<line x1="0" x2="${W}" y1="${y(max * f)}" y2="${y(max * f)}" class="grid"/>`).join("");
+    const bars = series.map((s, i) => {
+        const cx = colW * i + colW / 2;
+        return `
+        <rect x="${cx - barW - 2}" y="${y(s.income)}" width="${barW}" height="${H - padB - y(s.income)}" rx="3" class="bar-in"><title>${monthLabel(s.month)} income ${formatMoney(s.income)}</title></rect>
+        <rect x="${cx + 2}" y="${y(s.spending)}" width="${barW}" height="${H - padB - y(s.spending)}" rx="3" class="bar-out"><title>${monthLabel(s.month)} spending ${formatMoney(s.spending)}</title></rect>
+        <text x="${cx}" y="${H - 6}" text-anchor="middle" class="axis">${monthLabel(s.month)}</text>`;
+    }).join("");
+    return `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Income and spending for the last six months">${grid}${bars}</svg>`;
+}
+
+function categoryBars(list) {
+    if (!list.length) return emptyState("No spending yet", "Your largest spending categories will appear here.");
+    const max = list[0].total || 1;
+    return `<div class="cat-list">${list.map(c => `
+        <div class="cat-row">
+            <div class="cat-head"><span>${escapeHTML(c.label)}</span><strong>${formatMoney(c.total)}</strong></div>
+            <div class="progress"><i style="width:${((c.total / max) * 100).toFixed(1)}%"></i></div>
+        </div>`).join("")}</div>`;
+}
+
+const totalAssets = metrics.totalAssets;
+const totalLiabilities = metrics.totalLiabilities;
+const compTotal = Math.max(1, Math.max(0, totalCash) + totalAssets + totalLiabilities);
+const compPct = v => ((Math.max(0, v) / compTotal) * 100).toFixed(1);
+
+const hour = new Date().getHours();
+const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+
+const kpi = (label, value, hint, cls = "") => `
+    <div class="kpi ${cls}">
+        <div class="kpi-label">${label}</div>
+        <div class="kpi-value">${value}</div>
+        <div class="kpi-hint">${hint}</div>
+    </div>`;
+
+const hfriRing = hfri.available
+    ? `<div class="ring" data-band="${hfri.band.key}" style="--v:${hfri.total.toFixed(1)}"><strong>${hfri.total.toFixed(1)}</strong></div>`
+    : `<div class="ring" style="--v:0"><strong>—</strong></div>`;
+
+const NAV = [
+    ["overview", "Overview", "M3 13h8V3H3zm0 8h8v-6H3zm10 0h8V11h-8zm0-18v6h8V3z"],
+    ["activity", "Activity", "M4 6h16M4 12h16M4 18h10"],
+    ["accounts", "Accounts", "M3 10h18M5 10V20m4-10v10m6-10v10m4-10v10M2 20h20M12 3l9 5H3z"],
+    ["resilience", "Resilience", "M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6z"],
+    ["guide", "Guide", "M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2zm0 0v16"]
+];
+const icon = d => `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${d}"/></svg>`;
+
+const VIEW_META = {
+    overview: [`${greeting}`, `${escapeHTML(profile.name)} · ${todayDate.toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" })}`],
+    activity: ["Activity", "Every entry in this workspace, newest first."],
+    accounts: ["Accounts & balance sheet", "Where your cash lives, what you own and what you owe."],
+    resilience: ["Financial resilience", "Your Household Financial Resilience Index (HFRI), by Vivaan Agarwal."],
+    guide: ["Guide", "Step-by-step instructions for every screen and every entry."]
+};
+
+const views = {
+overview: `
+<div class="hero-grid">
+    <section class="card networth">
+        <div class="card-label">Net worth</div>
+        <div class="networth-value ${netWorth < 0 ? "neg" : ""}">${formatMoney(netWorth)}</div>
+        <div class="comp-bar" aria-hidden="true">
+            <i class="c-cash" style="width:${compPct(totalCash)}%"></i><i class="c-assets" style="width:${compPct(totalAssets)}%"></i><i class="c-debt" style="width:${compPct(totalLiabilities)}%"></i>
         </div>
-    `).join("")
-    : `<div class="empty-state">No EMI schedule yet. Add one while creating a new loan.</div>`;
-   document.body.innerHTML = `
-<div class="app">
-
-    <!-- TOP BAR -->
-    <div class="topbar">
-    <div class="left">
-        <button id="togglePanel" class="top-action primary-action">Add Data</button>
-        <button id="backBtn" class="top-action">Profiles</button>
-    </div>
-
-    <div class="center">Arbor Dashboard</div>
-
-    <div class="right">
-        <button id="logout" class="top-action danger-action">Logout</button>
-    </div>
+        <div class="comp-legend">
+            <div><span class="dot c-cash"></span>Cash<strong>${formatMoney(totalCash)}</strong></div>
+            <div><span class="dot c-assets"></span>Assets<strong>${formatMoney(totalAssets)}</strong></div>
+            <div><span class="dot c-debt"></span>Liabilities<strong>${formatMoney(totalLiabilities)}</strong></div>
+        </div>
+    </section>
+    <section class="card hfri-card">
+        ${hfriRing}
+        <div>
+            <div class="card-label">HFRI · Financial resilience</div>
+            <div class="hfri-card-band ${hfri.available ? `band-${hfri.band.key}` : ""}">${hfri.available ? escapeHTML(hfri.band.label) : "Not enough data"}</div>
+            <p>${hfri.available ? escapeHTML(hfri.band.text) : escapeHTML(hfri.reason)}</p>
+            <button class="btn btn-ghost btn-sm" data-go-view="resilience">View breakdown →</button>
+        </div>
+    </section>
 </div>
 
-    <div class="dashboard-tabs">
-        <button class="view-tab ${activeView === "overview" ? "active" : ""}" data-view="overview">Overview</button>
-        <button class="view-tab ${activeView === "accounts" ? "active" : ""}" data-view="accounts">Accounts</button>
-        <button class="view-tab ${activeView === "activity" ? "active" : ""}" data-view="activity">Activity</button>
-        <button class="view-tab ${activeView === "guide" ? "active" : ""}" data-view="guide">Guide</button>
-    </div>
-
-    <div class="layout">
-
-        <!-- LEFT SIDE -->
-        <div class="main">
-
-${activeView === "overview" ? `
-<div class="page-heading">
-    <div>
-        <h1>Financial Overview</h1>
-        <p>Track cash, spending, investments, loans, and repayment health in one place.</p>
-    </div>
-    <button id="openAddPanel" class="btn-primary compact" data-open-panel="activity">Add entry</button>
+<div class="kpi-grid">
+    ${kpi("Income", formatMoney(income), "Money earned into your accounts")}
+    ${kpi("Expense", formatMoney(expense), "Spending, repayments and EMIs")}
+    ${kpi("Total cash", formatMoney(totalCash), "Across all accounts", totalCash < 0 ? "neg" : "")}
+    ${kpi("Savings rate", `${(savingsRate * 100).toFixed(1)}%`, "Income kept after expenses", savingsRate < 0 ? "neg" : "")}
+    ${kpi("Emergency cover", `${emergencyCoverage.toFixed(1)} mo`, "Months of spending cash covers")}
+    ${kpi("Status", escapeHTML(status), "From your savings rate", `status-${status.toLowerCase()}`)}
+    ${kpi("Monthly flow", formatMoney(lastMonthFlow), "Latest month: income − spending", lastMonthFlow < 0 ? "neg" : "pos")}
+    ${kpi("3M avg expense", formatMoney(avgExpense), "Average recent monthly spend")}
+    ${kpi("Top spend", escapeHTML(topCategory), "Largest spending category")}
+    ${kpi("Avg transaction", formatMoney(avgTransaction), "Typical outgoing payment")}
+    ${kpi("MRR", formatMoney(MRR), "Average monthly salary")}
 </div>
 
-<div class="metrics-row">
-
-    <div class="metric-box">
-        <div>Income</div>
-        <strong>${formatMoney(income)}</strong>
-        <span>Money added to accounts.</span>
-    </div>
-
-    <div class="metric-box">
-        <div>Expense</div>
-        <strong>${formatMoney(expense)}</strong>
-        <span>Spending, loan payments and EMIs.</span>
-    </div>
-
-    <div class="metric-box ${totalCash>=0?'green':'red'}">
-    <div>Total Cash</div>
-<strong>${formatMoney(totalCash)}</strong>
-<span>Sum of all account balances.</span>
+<div class="grid-2-1">
+    <section class="card">
+        <div class="card-head"><h2>Cash flow</h2><div class="legend"><span><i class="bar-in"></i>Income</span><span><i class="bar-out"></i>Spending</span></div></div>
+        ${cashFlowChart(metrics.monthlySeries)}
+    </section>
+    <section class="card">
+        <div class="card-head"><h2>Where money goes</h2></div>
+        ${categoryBars(metrics.categoryBreakdown)}
+    </section>
 </div>
 
-    
-    <div class="metric-box">
-        <div>Net Worth</div>
-        <strong>${formatMoney(netWorth)}</strong>
-        <span>Cash + assets - liabilities.</span>
-    </div>
+<div class="grid-1-2">
+    <section class="card">
+        <div class="card-head"><h2>Accounts</h2><button class="link" data-go-view="accounts">View all</button></div>
+        <div class="mini-list">${accountList}</div>
+    </section>
+    <section class="card">
+        <div class="card-head"><h2>Recent activity</h2><button class="link" data-go-view="activity">View ledger</button></div>
+        ${ledgerTable(transactions.slice(0, 6))}
+    </section>
+</div>`,
 
-    <div class="metric-box">
-        <div>Savings</div>
-        <strong>${(savingsRate * 100).toFixed(1)}%</strong>
-        <span>Income left after expenses.</span>
+activity: `
+<section class="card">
+    <div class="toolbar">
+        <div class="chips" role="tablist" aria-label="Filter entries">
+            <button class="chip active" data-filter="all">All</button>
+            <button class="chip" data-filter="income">Income</button>
+            <button class="chip" data-filter="expense">Expenses</button>
+            <button class="chip" data-filter="transfer">Transfers</button>
+            <button class="chip" data-filter="invest">Investments</button>
+            <button class="chip" data-filter="loan">Loans</button>
+        </div>
+        <input class="search" id="ledgerSearch" type="search" placeholder="Search descriptions, accounts…" aria-label="Search entries">
     </div>
+    ${ledgerTable(transactions)}
+    <div class="empty filtered-empty" hidden><strong>No matching entries</strong><p>Try another filter or search term.</p></div>
+</section>`,
 
-    <div class="metric-box">
-        <div>Emergency</div>
-        <strong>${emergencyCoverage.toFixed(1)} mo</strong>
-        <span>Months of spending cash can cover.</span>
-    </div>
-
-    <div class="metric-box">
-        <div>Status</div>
-        <strong>${status}</strong>
-        <span>Based on savings rate.</span>
-    </div>
-
-    <div class="metric-box hfri-metric ${hfri.available ? `band-${hfri.band.key}` : ""}">
-        <div>HFRI</div>
-        <strong>${hfri.available ? `${hfri.total.toFixed(1)}<small>/100</small>` : "—"}</strong>
-        <span>${hfri.available ? `${escapeHTML(hfri.band.label)} resilience.` : "Not enough data yet."}</span>
-    </div>
-
-    <div class="metric-box">
-        <div>Top Spend</div>
-        <strong>${escapeHTML(topCategory)}</strong>
-        <span>Largest expense category.</span>
-    </div>
-
-    <div class="metric-box">
-    <div>3M Avg Expense</div>
-    <strong>${formatMoney(avgExpense)}</strong>
-    <span>Average recent monthly spend.</span>
+accounts: `
+<div class="summary-strip">
+    <div><span>Cash</span><strong>${formatMoney(totalCash)}</strong></div>
+    <div><span>Assets</span><strong>${formatMoney(totalAssets)}</strong></div>
+    <div><span>Liabilities</span><strong class="neg">${formatMoney(totalLiabilities)}</strong></div>
+    <div><span>Net worth</span><strong>${formatMoney(netWorth)}</strong></div>
 </div>
-<div class="metric-box">
-    <div>Avg Transaction Size</div>
-    <strong>${formatMoney(avgTransaction)}</strong>
-    <span>Typical outgoing entry.</span>
+<section class="card">
+    <div class="card-head"><h2>Cash accounts</h2><button class="btn btn-ghost btn-sm" data-open-panel="account">+ Add account</button></div>
+    <div class="acct-grid">${accountCards}</div>
+</section>
+<div class="grid-2">
+    <section class="card"><div class="card-head"><h2>Assets</h2></div>${assetTable}</section>
+    <section class="card"><div class="card-head"><h2>Liabilities</h2></div>${liabilityTable}</section>
 </div>
-<div class="metric-box ${lastMonthFlow >= 0 ? 'green' : 'red'}">
-    <div>Monthly Flow</div>
-    <strong>${formatMoney(lastMonthFlow)}</strong>
-    <span>Income minus expenses.</span>
-</div>
-<div class="metric-box">
-    <div>MRR</div>
-    <strong>${formatMoney(MRR)}</strong>
-    <span>Average monthly salary income.</span>
-</div>
-</div>
+<section class="card"><div class="card-head"><h2>EMI schedules</h2></div>${emiTable}</section>`,
 
+resilience: `
 ${renderHFRIPanel(hfri)}
+<div class="grid-2">
+    <section class="card prose-card">
+        <div class="card-head"><h2>What HFRI measures</h2></div>
+        <p>The Household Financial Resilience Index scores how well a household could absorb a financial shock while still meeting essential obligations. It combines four equally weighted dimensions, each scored 0–100 with calibrated functions from Vivaan Agarwal's research.</p>
+        <div class="formula">HFRI = 0.25·S + 0.25·D + 0.25·E + 0.25·X</div>
+        <ul class="dim-list">
+            <li><strong>Savings Strength</strong> · savings rate (income − spending) ÷ income</li>
+            <li><strong>Debt Sustainability</strong> · 40% debt-to-income + 60% repayments-to-income</li>
+            <li><strong>Emergency Coverage</strong> · liquid cash ÷ monthly essential spending</li>
+            <li><strong>Expense Stability</strong> · variation of monthly spending (CV)</li>
+        </ul>
+    </section>
+    <section class="card prose-card">
+        <div class="card-head"><h2>Score bands</h2></div>
+        <div class="band-scale">
+            <div class="band-very-low"><strong>&lt; 60</strong><span>Very low</span></div>
+            <div class="band-low"><strong>60–65</strong><span>Low</span></div>
+            <div class="band-transition"><strong>65–70</strong><span>Transition</span></div>
+            <div class="band-high"><strong>70–75</strong><span>High</span></div>
+            <div class="band-very-high"><strong>75+</strong><span>Very high</span></div>
+        </div>
+        <p class="small muted">Bands are provisional. They come from the paper's 1,000-household simulation, where shock survival rose sharply around 65–70.</p>
+        <div class="btn-row">
+            <a class="btn btn-primary btn-sm" href="${HFRI_SITE.calculator}" target="_blank" rel="noopener">HFRI calculator ↗</a>
+            <a class="btn btn-ghost btn-sm" href="${HFRI_SITE.research}" target="_blank" rel="noopener">Read the research ↗</a>
+            <button class="btn btn-ghost btn-sm" data-go-view="guide" data-guide-target="guide-hfri">How Arbor calculates it</button>
+        </div>
+    </section>
+</div>`,
 
-<div class="summary-grid">
-    <div class="section">
-        <h2>Account Balances</h2>
-        <div class="content">${accountRows}</div>
-    </div>
-    <div class="section">
-        <h2>Recent Activity</h2>
-        <div class="content">${transactionRows}</div>
-    </div>
-</div>
-` : ""}
+guide: renderGuideContent()
+};
 
-${activeView === "accounts" ? `
-<div class="page-heading">
-    <div>
-        <h1>Accounts</h1>
-        <p>Accounts are where cash lives. Every transaction credits or debits one account.</p>
-    </div>
-    <button id="openAddPanel" class="btn-primary compact" data-open-panel="account">Add account</button>
-</div>
-<div class="section">
-    <h2>Cash Locations</h2>
-    <div class="content">${accountRows}</div>
-</div>
-<div class="two-column">
-    <div class="section">
-        <h2>Assets</h2>
-        <div class="content">${assetRows}</div>
-    </div>
-    <div class="section">
-        <h2>Liabilities</h2>
-        <div class="content">${liabilityRows}</div>
-    </div>
-</div>
-<div class="section">
-    <h2>EMI Schedule</h2>
-    <div class="content">${emiRows}</div>
-</div>
-` : ""}
+document.body.innerHTML = `
+<div class="shell">
+    <aside class="sidebar">
+        <a class="sb-brand" href="index.html" title="Arbor home">${LOGO_SVG}<span><strong>Arbor</strong><small>by Vivaan Agarwal</small></span></a>
 
-${activeView === "activity" ? `
-<div class="page-heading">
-    <div>
-        <h1>Activity</h1>
-        <p>Review all income, expenses, investments, asset sales, loans, and repayments.</p>
-    </div>
-    <button id="openAddPanel" class="btn-primary compact" data-open-panel="activity">Add transaction</button>
-</div>
-<div class="section">
-    <h2>Transaction Ledger</h2>
-    <div class="content">${transactionRows}</div>
-</div>
-` : ""}
+        <div class="sb-profile">
+            <span class="sb-avatar">${escapeHTML((profile.name || "W")[0].toUpperCase())}</span>
+            <div><strong>${escapeHTML(profile.name)}</strong><small>${escapeHTML(profile.type || "personal")} workspace</small></div>
+            <button id="backBtn" class="sb-switch" title="Switch workspace">Switch</button>
+        </div>
 
-${activeView === "guide" ? `
-<div class="page-heading">
-    <div>
-        <h1>Guide</h1>
-        <p>Step-by-step instructions for every screen and every kind of entry, plus how to read your HFRI score.</p>
+        <nav class="sb-nav" aria-label="Dashboard">
+            ${NAV.map(([key, label, d]) => `<button class="view-tab ${activeView === key ? "active" : ""}" data-view="${key}">${icon(d)}<span>${label}</span></button>`).join("")}
+        </nav>
+
+        <div class="sb-foot">
+            <a href="${HFRI_SITE.calculator}" target="_blank" rel="noopener">HFRI Calculator ↗</a>
+            <a href="index.html">Arbor home</a>
+            <div class="credit">
+                <small>Designed &amp; built by</small>
+                <a href="${CREATOR.website}" target="_blank" rel="noopener">Vivaan Agarwal ↗</a>
+            </div>
+        </div>
+    </aside>
+
+    <div class="main">
+        <header class="topbar">
+            <div class="page-title">
+                <h1>${VIEW_META[activeView][0]}</h1>
+                <p>${VIEW_META[activeView][1]}</p>
+            </div>
+            <div class="top-actions">
+                <button id="togglePanel" class="btn btn-primary" data-open-panel="activity">+ Add entry</button>
+                <div class="user-chip" title="${escapeHTML(user.email)}"><span>${escapeHTML((user.email || "?")[0].toUpperCase())}</span><em>${escapeHTML(user.email)}</em></div>
+                <button id="logout" class="btn btn-ghost">Log out</button>
+            </div>
+        </header>
+
+        <main class="content view-${activeView}">
+            ${views[activeView]}
+        </main>
+
+        <footer class="app-footer">
+            <span>Arbor ${ARBOR.version} · Designed and built by <a href="${CREATOR.website}" target="_blank" rel="noopener">Vivaan Agarwal</a></span>
+            <span><a href="${HFRI_SITE.research}" target="_blank" rel="noopener">HFRI research</a> · <a href="${CREATOR.linkedin}" target="_blank" rel="noopener">LinkedIn</a> · <a href="${CREATOR.github}" target="_blank" rel="noopener">GitHub</a></span>
+        </footer>
     </div>
 </div>
-${renderGuideContent()}
-` : ""}
+
 <div class="overlay" id="overlay"></div>
+
+<aside class="side drawer" aria-label="Add data">
+    <div class="panel-head">
+        <div>
+            <h2>Add data</h2>
+            <p>Record one real-world event at a time.</p>
+        </div>
+        <button id="closePanel" class="icon-btn" title="Close" aria-label="Close">×</button>
+    </div>
+
+    <div class="panel-tabs">
+        <button class="panel-tab active" data-panel="activity">Activity</button>
+        <button class="panel-tab" data-panel="account">Account</button>
+    </div>
+
+    <div class="panel-section active" data-panel-section="activity">
+        <div class="field-label">What happened?</div>
+        <div class="segmented type-grid" id="txnTypeToggle">
+            <button data-value="income" class="active">Income</button>
+            <button data-value="expense">Expense</button>
+            <button data-value="transfer">Transfer</button>
+            <button data-value="asset_buy">Buy asset</button>
+            <button data-value="asset_sell">Sell asset</button>
+            <button data-value="liability_add">New loan</button>
+            <button data-value="liability_payment">Repay loan</button>
         </div>
 
-        <!-- RIGHT PANEL -->
-        <div class="side">
-<div class="panel-head">
-    <div>
-        <h2>Command Panel</h2>
-        <p>Add one clean record at a time. Accounts are cash locations; activity changes balances.</p>
-    </div>
-    <button id="closePanel" class="icon-btn" title="Close">×</button>
-</div>
+        <label class="field">Subtype<select id="txnSubType"></select></label>
+        <label class="field">Amount (₹)<input id="amount" inputmode="decimal" placeholder="0" /></label>
+        <label class="field">Description<input id="category" placeholder="e.g. Rent, Salary, Nifty Fund" /></label>
+        <label class="field">Account<select id="accountSelect"></select></label>
+        <label class="field" data-show-for="transfer">To account<select id="toAccountSelect"></select></label>
+        <label class="field" data-show-for="asset_sell">Asset<select id="assetSelect"></select></label>
+        <label class="field" data-show-for="liability_payment">Loan<select id="liabilitySelect"></select></label>
+        <label class="field">Date<input id="date" type="date" /></label>
 
-<div class="panel-tabs">
-    <button class="panel-tab active" data-panel="activity">Add Activity</button>
-    <button class="panel-tab" data-panel="account">Add Account</button>
-</div>
-
-<div class="panel-section active" data-panel-section="activity">
-<div class="form-card">
-    <div class="form-label">Activity Type</div>
-    <p class="field-help">Choose the real-world event you want to record.</p>
-
-    <div class="segmented" id="txnTypeToggle">
-        <button data-value="income" class="active">Income</button>
-        <button data-value="expense">Expense</button>
-        <button data-value="asset_buy">Buy Asset</button>
-        <button data-value="asset_sell">Sell Asset</button>
-        <button data-value="liability_add">New Loan</button>
-        <button data-value="liability_payment">Repay Loan</button>
-        <button data-value="transfer">Transfer</button>
-    </div>
-</div>
-
-<select id="txnSubType"></select>
-
-<div class="form-group">
-    <input id="amount" placeholder="Amount" />
-    <input id="category" placeholder="Description (e.g. Rent, Salary, Nifty Fund)" />
-    
-    <select id="accountSelect"></select>
-    <select id="toAccountSelect" style="display:none;"></select>
-    <select id="assetSelect" style="display:none;"></select>
-    <select id="liabilitySelect" style="display:none;"></select>
-
-    <input id="date" type="date" />
-</div>
-<div id="assetFields" class="hidden">
-    <input id="assetRate" placeholder="Return %" />
-
-    <select id="assetDirection">
-        <option value="appreciating">Appreciating</option>
-        <option value="depreciating">Depreciating</option>
-    </select>
-
-    <select id="assetCompounding">
-        <option value="simple">Simple</option>
-        <option value="compound">Compound</option>
-    </select>
-</div>
-<div id="liabilityFields" class="hidden">
-
-    <div class="form-card">
-        <div class="form-label">Loan Details</div>
-
-        <div class="form-row">
-            <input id="liabilityRate" placeholder="Interest %" />
-            <select id="liabilityCompounding">
-                <option value="simple">Simple Interest</option>
-                <option value="compound">Compound Interest</option>
-            </select>
+        <div id="assetFields" class="sub-form hidden">
+            <div class="field-label">Growth assumptions</div>
+            <div class="field-row">
+                <label class="field">Return % / yr<input id="assetRate" inputmode="decimal" placeholder="5" /></label>
+                <label class="field">Direction<select id="assetDirection"><option value="appreciating">Appreciating</option><option value="depreciating">Depreciating</option></select></label>
+            </div>
+            <label class="field">Growth<select id="assetCompounding"><option value="simple">Simple</option><option value="compound">Compound</option></select></label>
         </div>
 
-        <div class="form-row split">
-            <input id="emiTenure" placeholder="Tenure (Months)" />
-            <input id="emiAmount" placeholder="EMI Amount" />
+        <div id="liabilityFields" class="sub-form hidden">
+            <div class="field-label">Loan details</div>
+            <div class="field-row">
+                <label class="field">Interest % / yr<input id="liabilityRate" inputmode="decimal" placeholder="8" /></label>
+                <label class="field">Interest type<select id="liabilityCompounding"><option value="simple">Simple</option><option value="compound">Compound</option></select></label>
+            </div>
+            <div class="field-row">
+                <label class="field">Tenure (months)<input id="emiTenure" inputmode="numeric" placeholder="Optional" /></label>
+                <label class="field">EMI amount<input id="emiAmount" inputmode="decimal" placeholder="Optional" /></label>
+            </div>
+            <p class="field-help">Fill both to create an EMI schedule. The first EMI is due one month after the loan date.</p>
         </div>
+
+        <button id="addTxn" class="btn btn-primary btn-block">Save entry</button>
     </div>
 
-</div>
-<button id="addTxn" class="btn-primary">Add</button>
-</div>
-
-<div class="panel-section" data-panel-section="account">
-<div class="form-card">
-    <div class="form-label">Create Account</div>
-    <p class="field-help">Accounts are real places where cash lives. Add one for each balance you want to track.</p>
-
-    <div class="form-row">
-        <input id="accName" placeholder="e.g. HDFC Savings, Cash, Paytm Wallet" />
-        <input id="accOpeningBalance" placeholder="Current Balance (optional)" />
-    </div>
-
-    <div class="form-row">
+    <div class="panel-section" data-panel-section="account">
+        <p class="field-help">Accounts are real places where money is kept: a bank account, cash, a wallet.</p>
+        <label class="field">Account name<input id="accName" placeholder="e.g. HDFC Savings, Cash, Paytm" /></label>
+        <label class="field">Current balance (₹)<input id="accOpeningBalance" inputmode="decimal" placeholder="0" /></label>
+        <div class="field-label">Type</div>
         <div class="segmented" id="accTypeToggle">
             <button data-value="cash" class="active">Cash</button>
             <button data-value="bank">Bank</button>
             <button data-value="wallet">Wallet</button>
         </div>
-    </div>
-
-    <div id="bankDetails" class="bank-details hidden">
-        <div class="form-label">Bank Account Type</div>
-        <div class="segmented compact-segmented" id="accSubTypeToggle">
-            <button data-value="savings" class="active">Savings</button>
-            <button data-value="current">Current</button>
+        <div id="bankDetails" class="sub-form hidden">
+            <div class="field-label">Bank account type</div>
+            <div class="segmented" id="accSubTypeToggle">
+                <button data-value="savings" class="active">Savings</button>
+                <button data-value="current">Current</button>
+            </div>
+            <label class="field">Interest % (optional)<input id="accRate" inputmode="decimal" placeholder="0" /></label>
         </div>
-        <input id="accRate" placeholder="Interest % (optional)" />
+        <button id="addAccount" class="btn btn-primary btn-block">Create account</button>
     </div>
-</div>
-<button id="addAccount">Add Account</button>
-</div>
-
-    </div>
-</div>
-</div>
+</aside>
 `;
+
+// ---------- ledger filter + search (no re-render needed) ----------
+const ledgerSearch = document.getElementById("ledgerSearch");
+let ledgerFilter = "all";
+function applyLedgerFilter() {
+    const q = (ledgerSearch?.value || "").trim().toLowerCase();
+    let shown = 0;
+    document.querySelectorAll(".view-activity tbody tr").forEach(row => {
+        const ok = (ledgerFilter === "all" || row.dataset.group === ledgerFilter) && (!q || row.dataset.search.includes(q));
+        row.hidden = !ok;
+        if (ok) shown++;
+    });
+    const empty = document.querySelector(".filtered-empty");
+    if (empty) empty.hidden = shown > 0 || !document.querySelector(".view-activity tbody tr");
+}
+ledgerSearch?.addEventListener("input", applyLedgerFilter);
+document.querySelectorAll(".chip[data-filter]").forEach(chip => {
+    chip.onclick = () => {
+        ledgerFilter = chip.dataset.filter;
+        document.querySelectorAll(".chip[data-filter]").forEach(c => c.classList.toggle("active", c === chip));
+        applyLedgerFilter();
+    };
+});
+
+// jump to a guide section requested from another view
+const pendingGuide = sessionStorage.getItem("guideTarget");
+if (activeView === "guide" && pendingGuide) {
+    sessionStorage.removeItem("guideTarget");
+    requestAnimationFrame(() => document.getElementById(pendingGuide)?.scrollIntoView({ block: "start" }));
+}
 
 const panel = document.querySelector(".side");
 
@@ -1202,14 +1272,15 @@ function updateFormForType() {
     document.getElementById("assetFields").classList.toggle("hidden", type !== "asset_buy");
     document.getElementById("liabilityFields").classList.toggle("hidden", type !== "liability_add");
 
-    assetSelect.style.display = type === "asset_sell" ? "block" : "none";
-    liabilitySelect.style.display = type === "liability_payment" ? "block" : "none";
-    toAccountSelect.style.display = type === "transfer" ? "block" : "none";
+    document.querySelectorAll("[data-show-for]").forEach(field => {
+        field.hidden = field.dataset.showFor !== type;
+    });
 
     txnSubTypeEl.innerHTML = (subtypeMap[type] || [])
         .map(s => `<option value="${s}">${s}</option>`)
         .join("");
-    txnSubTypeEl.style.display = type === "transfer" ? "none" : "";
+    txnSubTypeEl.closest("label").hidden = type === "transfer";
+    accountSelect.closest("label").firstChild.textContent = type === "transfer" ? "From account" : "Account";
 
     populateAccounts();
     if (type === "asset_sell") populateAssets();
@@ -1498,6 +1569,7 @@ document.body.onclick = async (e) => {
     // GUIDE / anywhere: switch dashboard tab
     const goView = target.closest("[data-go-view]");
     if (goView) {
+        if (goView.dataset.guideTarget) sessionStorage.setItem("guideTarget", goView.dataset.guideTarget);
         localStorage.setItem("dashboardView", goView.dataset.goView);
         await renderDashboard(user, profileId);
         window.scrollTo({ top: 0 });
@@ -1523,9 +1595,11 @@ document.body.onclick = async (e) => {
         return;
     }
 
-    if (target.classList.contains("view-tab")) {
-        localStorage.setItem("dashboardView", target.dataset.view);
+    const viewTab = target.closest(".view-tab");
+    if (viewTab) {
+        localStorage.setItem("dashboardView", viewTab.dataset.view);
         await renderDashboard(user, profileId);
+        window.scrollTo({ top: 0 });
         return;
     }
 
@@ -1584,30 +1658,66 @@ observeAuth(async (user) => {
         await renderApp(user);
     } else {
         document.body.onclick = null;
+        let authMode = new URLSearchParams(window.location.search).get("mode") === "signup" ? "signup" : "login";
+
         document.body.innerHTML = `
-        <div class="container">
+        <div class="auth-shell">
+            <section class="auth-brand">
+                <a class="sb-brand" href="index.html">${LOGO_SVG}<span><strong>Arbor</strong><small>by Vivaan Agarwal</small></span></a>
+                <div class="auth-pitch">
+                    <h1>Understand your financial position, <em>not just your transactions.</em></h1>
+                    <ul>
+                        <li>Accounts, ledger, assets, loans and EMIs in one workspace</li>
+                        <li>Net worth and 13 live metrics, calculated as of today</li>
+                        <li>Resilience scored with the HFRI research model</li>
+                    </ul>
+                </div>
+                <div class="auth-credit">
+                    <span>Designed &amp; built by</span>
+                    <a href="${CREATOR.website}" target="_blank" rel="noopener">Vivaan Agarwal ↗</a>
+                </div>
+            </section>
 
-            <div class="hero">
-                <h1 class="hero-title">Arbor</h1>
-                <p class="hero-sub">Quant Financial Operating System</p>
-                <p class="hero-mini">Built by Vivaan Agarwal</p>
-            </div>
+            <section class="auth-panel">
+                <a class="auth-back" href="index.html">← Back to Arbor home</a>
+                <div class="auth-card">
+                    <div class="auth-tabs" role="tablist">
+                        <button class="auth-tab" data-mode="login" role="tab">Log in</button>
+                        <button class="auth-tab" data-mode="signup" role="tab">Create account</button>
+                    </div>
+                    <h2 id="authTitle"></h2>
+                    <p id="authSub" class="muted"></p>
 
-            <div class="card auth-card">
+                    <label class="field">Email<input id="email" type="email" autocomplete="email" placeholder="you@example.com" /></label>
+                    <label class="field">Password<input id="password" type="password" autocomplete="current-password" placeholder="At least 6 characters" /></label>
+                    <div id="authMessage" class="auth-message" role="status"></div>
 
-                <input id="email" placeholder="Email" />
-                <input id="password" type="password" placeholder="Password" />
-                <div id="authMessage" class="auth-message" role="status"></div>
-
-                <button id="login" class="primary">Login</button>
-                <button id="signup" class="secondary">Create Account</button>
-                <button id="reset" class="link">Forgot Password?</button>
-
-            </div>
-
+                    <button id="login" class="btn btn-primary btn-block">Log in</button>
+                    <button id="signup" class="btn btn-primary btn-block">Create account</button>
+                    <button id="reset" class="btn-link">Forgot your password?</button>
+                </div>
+                <p class="auth-foot">Arbor is an educational tool and does not provide financial advice. HFRI by <a href="${HFRI_SITE.research}" target="_blank" rel="noopener">Vivaan Agarwal</a>.</p>
+            </section>
         </div>
         `;
-        
+
+        function setAuthMode(mode) {
+            authMode = mode;
+            document.querySelectorAll(".auth-tab").forEach(t => t.classList.toggle("active", t.dataset.mode === mode));
+            document.getElementById("login").hidden = mode !== "login";
+            document.getElementById("reset").hidden = mode !== "login";
+            document.getElementById("signup").hidden = mode !== "signup";
+            document.getElementById("authTitle").textContent = mode === "login" ? "Welcome back" : "Create your workspace";
+            document.getElementById("authSub").textContent = mode === "login"
+                ? "Log in to open your Arbor dashboard."
+                : "Free to use. No bank login needed.";
+            document.getElementById("password").autocomplete = mode === "login" ? "current-password" : "new-password";
+            document.getElementById("authMessage").textContent = "";
+            document.getElementById("authMessage").className = "auth-message";
+        }
+
+        document.querySelectorAll(".auth-tab").forEach(t => { t.onclick = () => setAuthMode(t.dataset.mode); });
+        setAuthMode(authMode);
 
         const emailInput = document.getElementById("email");
         const passwordInput = document.getElementById("password");
@@ -1685,7 +1795,8 @@ observeAuth(async (user) => {
         [emailInput, passwordInput].forEach(input => {
             input.addEventListener("keydown", async (event) => {
                 if (event.key === "Enter") {
-                    await runAuthAction("login", "Logging in...");
+                    if (authMode === "signup") await runAuthAction("signup", "Creating account...");
+                    else await runAuthAction("login", "Logging in...");
                 }
             });
         });
