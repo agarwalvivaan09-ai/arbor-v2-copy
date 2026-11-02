@@ -1,3 +1,78 @@
+// ==========================================================
+// ARBOR FINANCIAL ENGINE
+// ----------------------------------------------------------
+// Pure function: takes the profile's raw records and returns
+// every number the dashboard shows. Everything is computed
+// "as of today": records dated in the future are ignored
+// until their date arrives.
+//
+// Cash      = opening balances + dated cash movements + EMIs paid
+// Assets    = purchase value grown at its rate, minus sales
+// Loans     = principal grown at its rate, minus repayments
+//             (each repayment stops accruing interest from the
+//             day it is paid — i.e. reducing-balance logic)
+// Net worth = cash + assets - loans
+// ==========================================================
+
+const DAY_MS = 1000 * 60 * 60 * 24;
+const MS_PER_YEAR = DAY_MS * 365;
+const MAX_EMI_INSTALLMENTS = 1200; // safety cap (100 years)
+
+export const CASH_IN_TYPES = ["income", "asset_sell", "liability_add"];
+export const CASH_OUT_TYPES = ["expense", "asset_buy", "liability_payment"];
+
+export function toDate(value) {
+    if (!value) return null;
+    if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
+    if (typeof value === "object" && typeof value.seconds === "number") {
+        return new Date(value.seconds * 1000);
+    }
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? null : date;
+}
+
+// Adds whole months, clamping to the last day of shorter months
+// (31 Jan + 1 month = 28/29 Feb).
+export function addMonths(dateValue, months) {
+    const base = toDate(dateValue);
+    if (!base) return null;
+    const day = base.getUTCDate();
+    const result = new Date(Date.UTC(base.getUTCFullYear(), base.getUTCMonth() + months, 1));
+    const lastDay = new Date(Date.UTC(result.getUTCFullYear(), result.getUTCMonth() + 1, 0)).getUTCDate();
+    result.setUTCDate(Math.min(day, lastDay));
+    return result;
+}
+
+export function monthKey(dateValue) {
+    const date = toDate(dateValue);
+    return date ? date.toISOString().slice(0, 7) : null;
+}
+
+function amountOf(item) {
+    const amount = Number(item?.amount);
+    return Number.isFinite(amount) && amount > 0 ? amount : 0;
+}
+
+function timestampValue(createdAt) {
+    if (!createdAt) return 0;
+    if (typeof createdAt === "number") return createdAt;
+    if (typeof createdAt.seconds === "number") return createdAt.seconds * 1000;
+    const date = toDate(createdAt);
+    return date ? date.getTime() : 0;
+}
+
+// A rate of 0 is valid; only a missing / unparseable rate falls back.
+function rateOf(item, defaultRate) {
+    if (item?.rate === null || item?.rate === undefined || item?.rate === "") return defaultRate;
+    const rate = Number(item.rate);
+    return Number.isFinite(rate) ? rate : defaultRate;
+}
+
+function isCompound(item) {
+    // assets store it in `compounding`, liabilities in `type`
+    return item?.compounding === "compound" || item?.type === "compound";
+}
+
 export function computeFinancials(state, options = {}) {
     const {
         assets = [],
@@ -6,325 +81,319 @@ export function computeFinancials(state, options = {}) {
         accounts = [],
         emis = []
     } = state || {};
+
     const taxEnabled = options.taxEnabled || false;
-    const today = new Date();
-    const MS_PER_YEAR = 1000 * 60 * 60 * 24 * 365;
+    const today = toDate(options.today) || new Date();
 
-    function amountOf(item) {
-        const amount = Number(item?.amount);
-        return Number.isFinite(amount) && amount > 0 ? amount : 0;
+    function isEffective(dateValue) {
+        // undated records are treated as already happened
+        if (!dateValue) return true;
+        const date = toDate(dateValue);
+        return !!date && date <= today;
     }
 
-    function isDue(dateValue) {
-        if (!dateValue) return false;
-        const date = new Date(dateValue);
-        return !Number.isNaN(date.getTime()) && date <= today;
+    // Growth multiplier for money tied to `item` between two dates,
+    // honouring the item's start/end dates, rate and compounding.
+    function growthFactor(item, defaultRate, direction, fromValue, toValue) {
+        if (!item?.startDate) return 1;
+
+        const start = toDate(item.startDate);
+        let from = toDate(fromValue) || start;
+        let to = toDate(toValue) || today;
+        if (!start) return 1;
+
+        if (from < start) from = start;
+        const end = toDate(item.endDate);
+        if (end && to > end) to = end;
+
+        const years = Math.max(0, (to - from) / MS_PER_YEAR);
+        const rate = rateOf(item, defaultRate) / 100;
+
+        const factor = isCompound(item)
+            ? Math.pow(1 + direction * rate, years)
+            : 1 + direction * rate * years;
+
+        return Math.max(0, factor);
     }
 
-    function hasRemainingPrincipal(emi) {
-        if (emi?.remainingPrincipal === undefined || emi?.remainingPrincipal === null || emi?.remainingPrincipal === "") {
-            return true;
-        }
-
-        return Number(emi.remainingPrincipal) > 0;
-    }
-
-    function activeEmiAmount(emi) {
-        if (!emi?.accountId || balances[emi.accountId] === undefined) return 0;
-        if (!isDue(emi.nextDate)) return 0;
-        if (!hasRemainingPrincipal(emi)) return 0;
-        return amountOf(emi);
-    }
-
-    function monthKey(dateValue) {
-        if (!dateValue) return null;
-
-        const date = new Date(dateValue);
-        return Number.isNaN(date.getTime()) ? null : date.toISOString().slice(0, 7);
-    }
-
-    function timestampValue(createdAt) {
-        if (!createdAt) return 0;
-        if (typeof createdAt === "number") return createdAt;
-        if (typeof createdAt.seconds === "number") return createdAt.seconds * 1000;
-        return 0;
-    }
-
-    function datedValue(item, defaultRate, direction = 1) {
-        const principal = Number(item.value || 0);
-        if (!item.startDate) return principal;
-
-        const start = new Date(item.startDate);
-        if (Number.isNaN(start.getTime()) || start > today) return 0;
-
-        let years = (today - start) / MS_PER_YEAR;
-
-        if (item.endDate) {
-            const end = new Date(item.endDate);
-            if (!Number.isNaN(end.getTime()) && today > end) {
-                years = Math.max(0, (end - start) / MS_PER_YEAR);
-            }
-        }
-
-        const rawRate = item.rate === null || item.rate === undefined || item.rate === ""
-            ? defaultRate
-            : Number(item.rate);
-        const rate = (Number.isFinite(rawRate) ? rawRate : defaultRate) / 100;
-
-        if (item.compounding === "compound" || item.type === "compound") {
-            return principal * Math.pow(1 + direction * rate, years);
-        }
-
-        return principal * (1 + direction * rate * years);
+    function hasStarted(item, atValue = today) {
+        if (!item?.startDate) return true;
+        const start = toDate(item.startDate);
+        const at = toDate(atValue) || today;
+        return !!start && start <= at;
     }
 
     // ------------------------
     // INIT BALANCES
     // ------------------------
     const balances = {};
-    accounts.forEach(a => balances[a.id] = Number(a.openingBalance) || 0);
-
-    const validTxns = transactions.filter(t => amountOf(t) > 0);
-
-    const sorted = [...validTxns].sort((a, b) => {
-        const aDate = new Date(a.date).getTime();
-        const bDate = new Date(b.date).getTime();
-        const aTime = Number.isNaN(aDate) ? 0 : aDate;
-        const bTime = Number.isNaN(bDate) ? 0 : bDate;
-
-        if (aTime !== bTime) return aTime - bTime;
-        return timestampValue(a.createdAt) - timestampValue(b.createdAt);
+    accounts.forEach(a => {
+        balances[a.id] = Number(a.openingBalance) || 0;
     });
 
-    // ------------------------
-    // TAX
-    // ------------------------
-
+    const effectiveTxns = transactions
+        .filter(t => amountOf(t) > 0 && isEffective(t.date))
+        .sort((a, b) => {
+            const aTime = toDate(a.date)?.getTime() || 0;
+            const bTime = toDate(b.date)?.getTime() || 0;
+            if (aTime !== bTime) return aTime - bTime;
+            return timestampValue(a.createdAt) - timestampValue(b.createdAt);
+        });
 
     let income = 0;
     let expense = 0;
-    let tax = 0;
+    const tax = 0; // tax module not wired in yet
+
+    // Every outgoing spend (expense, loan payment, EMI) with its date.
+    // Feeds category, monthly and average metrics.
+    const outflows = [];
+    const inflows = [];
 
     // ------------------------
     // CORE FLOW ENGINE
     // ------------------------
-    sorted.forEach(t => {
-       const amount = amountOf(t);
-       const acc = t.accountId;
+    effectiveTxns.forEach(t => {
+        const amount = amountOf(t);
+        const acc = t.accountId;
+        if (!acc || balances[acc] === undefined) return;
 
-if (!acc || balances[acc] === undefined) return;
-
-       if (t.type === "income") {
-    income += amount;
-    balances[acc] += amount;
-}
-
-        if (t.type === "expense") {
-            expense += amount;
-            balances[acc] -= amount;
+        switch (t.type) {
+            case "income":
+                income += amount;
+                balances[acc] += amount;
+                inflows.push({ date: t.date, amount });
+                break;
+            case "expense":
+                expense += amount;
+                balances[acc] -= amount;
+                outflows.push({ date: t.date, amount, category: t.category || t.subtype || "other" });
+                break;
+            case "asset_buy":
+                balances[acc] -= amount;
+                break;
+            case "asset_sell":
+                balances[acc] += amount;
+                break;
+            case "liability_add":
+                balances[acc] += amount;
+                break;
+            case "liability_payment":
+                expense += amount;
+                balances[acc] -= amount;
+                outflows.push({ date: t.date, amount, category: t.category || "loan payment" });
+                break;
+            case "transfer": {
+                const to = t.toAccountId;
+                if (!to || balances[to] === undefined || to === acc) return;
+                balances[acc] -= amount;
+                balances[to] += amount;
+                break;
+            }
+            default:
+                break;
         }
-if (t.type === "asset_buy") {
-    balances[acc] -= amount;
-}
-
-if (t.type === "asset_sell") {
-    balances[acc] += amount;
-}
-
-if (t.type === "liability_add") {
-    balances[acc] += amount;
-}
-
-if (t.type === "liability_payment") {
-    balances[acc] -= amount;
-    expense += amount;
-}
     });
 
     // ------------------------
-    // EMI (as expense)
+    // LIABILITIES + EMI SCHEDULES
     // ------------------------
+    const liabilityById = Object.fromEntries(liabilities.map(l => [l.id, l]));
+
+    // payments[liabilityId] = [{ date, amount }]
+    const payments = {};
+    liabilities.forEach(l => { payments[l.id] = []; });
+
+    effectiveTxns.forEach(t => {
+        if (t.type !== "liability_payment" || !payments[t.liabilityId]) return;
+        payments[t.liabilityId].push({ date: t.date, amount: amountOf(t) });
+    });
+
+    function outstandingAt(l, atValue) {
+        if (!hasStarted(l, atValue)) return 0;
+        const at = toDate(atValue) || today;
+        const principal = (Number(l.value) || 0) * growthFactor(l, 8, 1, l.startDate, at);
+        const repaid = (payments[l.id] || [])
+            .filter(p => { const d = toDate(p.date); return !d || d <= at; })
+            .reduce((sum, p) => sum + p.amount * growthFactor(l, 8, 1, p.date, at), 0);
+        return principal - repaid;
+    }
+
+    function linkedLiability(emi) {
+        if (emi.liabilityId) return liabilityById[emi.liabilityId] || null;
+        // legacy EMIs were saved without liabilityId — they share the loan's name
+        return liabilities.find(l => l.name && l.name === emi.name) || null;
+    }
+
+    const emiStatus = {};
+
     emis.forEach(e => {
-    const emiAmount = activeEmiAmount(e);
-    if (!emiAmount) return;
+        const emiAmount = amountOf(e);
+        const first = toDate(e.firstDate || e.nextDate);
+        const tenure = Number(e.tenure) > 0 ? Math.floor(Number(e.tenure)) : MAX_EMI_INSTALLMENTS;
+        const accountOk = !!e.accountId && balances[e.accountId] !== undefined;
+        const liability = linkedLiability(e);
 
-    balances[e.accountId] -= emiAmount;
-    expense += emiAmount;
+        const status = {
+            paidCount: 0,
+            paidAmount: 0,
+            tenure: Number(e.tenure) > 0 ? tenure : null,
+            nextDue: null,
+            completed: false,
+            liabilityId: liability?.id || null
+        };
+        emiStatus[e.id] = status;
 
-});
+        if (!emiAmount || !first || !accountOk) {
+            status.nextDue = first;
+            return;
+        }
 
-    // ------------------------
-    // CASH
-    // ------------------------
-const totalCash = Object.values(balances).reduce((a, b) => {
-    return (a || 0) + (b || 0);
-}, 0);
+        let k = 0;
+        for (; k < Math.min(tenure, MAX_EMI_INSTALLMENTS); k++) {
+            const due = addMonths(first, k);
+            if (due > today) break;
 
-    // ------------------------
-    // ASSETS (WITH FLOWS)
-    // ------------------------
-    const totalAssets = assets.reduce((sum, a) => {
-        const direction = a.type === "depreciating" ? -1 : 1;
-        const base = datedValue(a, 5, direction);
+            let amount = emiAmount;
+            if (liability) {
+                const remaining = outstandingAt(liability, due);
+                if (remaining <= 0.5) { status.completed = true; break; }
+                amount = Math.min(emiAmount, remaining);
+                payments[liability.id].push({ date: due, amount });
+            }
 
-        const flows = transactions
-            .filter(t => t.assetId === a.id)
-            .reduce((s, t) => {
-                const amount = amountOf(t);
-if (t.type === "asset_sell" || t.type === "liquidation" || t.type === "sell") return s - amount;
-                return s;
-            }, 0);
+            balances[e.accountId] -= amount;
+            expense += amount;
+            outflows.push({ date: due, amount, category: e.name || "EMI" });
+            status.paidCount++;
+            status.paidAmount += amount;
+        }
 
-        return sum + Math.max(0, base + flows);
-    }, 0);
+        if (k >= tenure) status.completed = true;
+        if (!status.completed && liability && outstandingAt(liability, today) <= 0.5) status.completed = true;
+        if (!status.completed) status.nextDue = addMonths(first, k);
+    });
 
+    const liabilityOutstanding = {};
     const totalLiabilities = liabilities.reduce((sum, l) => {
-        const principal = datedValue(l, 8, 1);
-        const repayments = transactions
-            .filter(t => t.type === "liability_payment" && t.liabilityId === l.id)
-            .reduce((total, t) => total + amountOf(t), 0);
-
-        return sum + Math.max(0, principal - repayments);
+        const value = Math.max(0, outstandingAt(l, today));
+        liabilityOutstanding[l.id] = value;
+        return sum + value;
     }, 0);
 
+    // ------------------------
+    // ASSETS
+    // ------------------------
+    const assetValues = {};
+    const totalAssets = assets.reduce((sum, a) => {
+        if (!hasStarted(a)) {
+            assetValues[a.id] = 0;
+            return sum;
+        }
+
+        const direction = a.type === "depreciating" ? -1 : 1;
+        const base = (Number(a.value) || 0) * growthFactor(a, 5, direction, a.startDate, today);
+
+        // a sale removes that amount of value from the date it happened,
+        // so it no longer appreciates / depreciates afterwards
+        const sold = effectiveTxns
+            .filter(t => t.assetId === a.id && t.type === "asset_sell")
+            .reduce((s, t) => s + amountOf(t) * growthFactor(a, 5, direction, t.date, today), 0);
+
+        const value = Math.max(0, base - sold);
+        assetValues[a.id] = value;
+        return sum + value;
+    }, 0);
+
+    // ------------------------
+    // CASH + NET WORTH
+    // ------------------------
+    const totalCash = Object.values(balances).reduce((a, b) => a + (b || 0), 0);
     const netWorth = totalCash + totalAssets - totalLiabilities;
 
-   const netIncomeAfterTax = taxEnabled ? income - tax : income;
+    const netIncomeAfterTax = taxEnabled ? income - tax : income;
 
     const savingsRate = netIncomeAfterTax > 0
         ? (netIncomeAfterTax - expense) / netIncomeAfterTax
         : 0;
-
-    const emergencyCoverage = expense > 0 ? totalCash / expense : 0;
 
     let status = "Vulnerable";
     if (savingsRate >= 0.4) status = "Strong";
     else if (savingsRate >= 0.15) status = "Stable";
 
     // ------------------------
-    // CATEGORY FIX
+    // TOP SPEND CATEGORY (case-insensitive: "Rent" == "rent ")
     // ------------------------
     const categoryMap = {};
-
-    transactions.forEach(t => {
-        if (t.type !== "expense") return;
-        const amount = amountOf(t);
-        if (!amount) return;
-
-        const key = t.category || t.subtype || "other";
-
-        categoryMap[key] = (categoryMap[key] || 0) + amount;
+    outflows.forEach(o => {
+        const label = String(o.category).trim() || "other";
+        const key = label.toLowerCase();
+        if (!categoryMap[key]) categoryMap[key] = { label, total: 0 };
+        categoryMap[key].total += o.amount;
     });
 
     let topCategory = "—";
     let max = 0;
-
-    Object.entries(categoryMap).forEach(([k, v]) => {
-        if (v > max) {
-            max = v;
-            topCategory = k;
+    Object.values(categoryMap).forEach(({ label, total }) => {
+        if (total > max) {
+            max = total;
+            topCategory = label;
         }
     });
 
     // ------------------------
-    // MRR FIX (salary only)
+    // MRR (salary only)
     // ------------------------
-    const monthly = {};
-
-    transactions.forEach(t => {
+    const monthlySalary = {};
+    effectiveTxns.forEach(t => {
         if (t.type !== "income" || t.subtype !== "salary") return;
-
         const m = monthKey(t.date);
         if (!m) return;
-
-        const amount = amountOf(t);
-        if (!amount) return;
-
-        monthly[m] = (monthly[m] || 0) + amount;
+        monthlySalary[m] = (monthlySalary[m] || 0) + amountOf(t);
     });
 
-    const MRR = Object.keys(monthly).length
-        ? Object.values(monthly).reduce((a,b)=>a+b,0) / Object.keys(monthly).length
+    const salaryMonths = Object.values(monthlySalary);
+    const MRR = salaryMonths.length
+        ? salaryMonths.reduce((a, b) => a + b, 0) / salaryMonths.length
         : 0;
 
     // ------------------------
-    // CASH FLOW
+    // MONTHLY CASH FLOW
     // ------------------------
     const monthlyFlow = {};
+    const bucket = m => (monthlyFlow[m] ||= { inc: 0, exp: 0 });
 
-    transactions.forEach(t => {
-        if (!t.date) return;
-
-        const m = monthKey(t.date);
-        if (!m) return;
-
-        if (!monthlyFlow[m]) monthlyFlow[m] = {inc:0, exp:0};
-
-        const amount = amountOf(t);
-        if (t.type === "income") monthlyFlow[m].inc += amount;
-        if (t.type === "expense" || t.type === "liability_payment") monthlyFlow[m].exp += amount;
-        // EMI inclusion
-
+    inflows.forEach(i => {
+        const m = monthKey(i.date);
+        if (m) bucket(m).inc += i.amount;
     });
-emis.forEach(e => {
-    const m = monthKey(e.nextDate);
-    if (!m) return;
-
-    if (!monthlyFlow[m]) monthlyFlow[m] = {inc:0, exp:0};
-
-    monthlyFlow[m].exp += activeEmiAmount(e);
-});
+    outflows.forEach(o => {
+        const m = monthKey(o.date);
+        if (m) bucket(m).exp += o.amount;
+    });
 
     const flowMonths = Object.keys(monthlyFlow).sort();
-const last = flowMonths[flowMonths.length - 1];
+    const last = flowMonths[flowMonths.length - 1];
+    const lastMonthFlow = last ? monthlyFlow[last].inc - monthlyFlow[last].exp : 0;
 
-    const lastMonthFlow = last
-        ? monthlyFlow[last].inc - monthlyFlow[last].exp
+    // ------------------------
+    // AVG EXPENSE (latest 3 months with spending)
+    // ------------------------
+    const expenseMonths = flowMonths.filter(m => monthlyFlow[m].exp > 0);
+    const last3 = expenseMonths.slice(-3);
+    const avgExpense = last3.length
+        ? last3.reduce((s, m) => s + monthlyFlow[m].exp, 0) / last3.length
         : 0;
-// ------------------------
-// AVG EXPENSE (3M)
-// ------------------------
-const monthlyExpenseMap = {};
 
-transactions.forEach(t => {
-    if ((t.type !== "expense" && t.type !== "liability_payment") || !t.date) return;
+    // Months of spending current cash can cover.
+    const emergencyCoverage = avgExpense > 0 ? Math.max(0, totalCash) / avgExpense : 0;
 
-    const m = monthKey(t.date);
-    if (!m) return;
+    // ------------------------
+    // AVG TRANSACTION SIZE (outgoing)
+    // ------------------------
+    const avgTransaction = outflows.length
+        ? outflows.reduce((s, o) => s + o.amount, 0) / outflows.length
+        : 0;
 
-    const amount = amountOf(t);
-    if (!amount) return;
-
-    monthlyExpenseMap[m] = (monthlyExpenseMap[m] || 0) + amount;
-});
-
-emis.forEach(e => {
-    const m = monthKey(e.nextDate);
-    if (!m) return;
-
-    const amount = activeEmiAmount(e);
-    if (!amount) return;
-
-    monthlyExpenseMap[m] = (monthlyExpenseMap[m] || 0) + amount;
-});
-
-const sortedMonths = Object.keys(monthlyExpenseMap).sort();
-const last3 = sortedMonths.slice(-3);
-
-const avgExpense = last3.length
-    ? last3.reduce((s,m)=>s+monthlyExpenseMap[m],0) / last3.length
-    : 0;
-
-// ------------------------
-// AVG TRANSACTION SIZE
-// ------------------------
-const expenseTxns = transactions.filter(t => {
-    return (t.type === "expense" || t.type === "liability_payment") && amountOf(t) > 0;
-});
-
-const avgTransaction = expenseTxns.length
-    ? expenseTxns.reduce((s,t)=>s+amountOf(t),0) / expenseTxns.length
-    : 0;
     return {
         balances,
         totalCash,
@@ -341,7 +410,10 @@ const avgTransaction = expenseTxns.length
         topCategory,
         status,
         avgExpense,
-avgTransaction,
-        lastMonthFlow
+        avgTransaction,
+        lastMonthFlow,
+        assetValues,
+        liabilityOutstanding,
+        emiStatus
     };
 }

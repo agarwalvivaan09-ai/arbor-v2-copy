@@ -7,7 +7,7 @@ import { deleteAsset } from "./modules/networth.js";
 import { deleteLiability } from "./modules/networth.js";
 import { createAccount, getAccounts } from "./modules/accounts.js";
 import { createEMI, getEMIs } from "./modules/emi.js";
-import { computeFinancials } from "./modules/engine.js";
+import { computeFinancials, addMonths, toDate } from "./modules/engine.js";
 import { deleteAccount } from "./modules/accounts.js";
 import { deleteEMI } from "./modules/emi.js";
 let state = {
@@ -17,14 +17,27 @@ let state = {
     accounts: [],
     emis: []
 };
+
+// Guards the Add buttons against double clicks creating duplicate records.
+let isSubmitting = false;
 // ==========================
 // MAIN ROUTER
 // ==========================
 
 async function renderApp(user) {
-    const selectedProfile = localStorage.getItem("selectedProfile");
+    let selectedProfile = localStorage.getItem("selectedProfile");
 
     try {
+        // a profile id left in localStorage by another user (or a deleted
+        // profile) must never be opened
+        if (selectedProfile) {
+            const ownProfiles = await getProfiles(user.uid);
+            if (!ownProfiles.some(p => p.id === selectedProfile)) {
+                localStorage.removeItem("selectedProfile");
+                selectedProfile = null;
+            }
+        }
+
         if (selectedProfile) {
             await renderDashboard(user, selectedProfile);
         } else {
@@ -65,7 +78,37 @@ function escapeHTML(value) {
 }
 
 function formatMoney(value) {
-    return `₹${Math.round(Number(value) || 0).toLocaleString("en-IN")}`;
+    const rounded = Math.round(Number(value) || 0);
+    const sign = rounded < 0 ? "-" : "";
+    return `${sign}₹${Math.abs(rounded).toLocaleString("en-IN")}`;
+}
+
+// Empty input → fallback; "0" is a valid rate.
+function parseRate(inputValue, fallback) {
+    const raw = String(inputValue ?? "").trim();
+    if (raw === "") return fallback;
+    const rate = Number(raw);
+    return Number.isFinite(rate) && rate >= 0 ? rate : fallback;
+}
+
+function formatDate(value) {
+    const date = toDate(value);
+    return date ? date.toLocaleDateString() : "not set";
+}
+
+const EMPTY_STATE = () => ({
+    assets: [],
+    liabilities: [],
+    transactions: [],
+    accounts: [],
+    emis: []
+});
+
+async function logoutUser() {
+    state = EMPTY_STATE();
+    localStorage.removeItem("selectedProfile");
+    localStorage.removeItem("dashboardView");
+    await logout();
 }
 
 function readableType(type) {
@@ -76,6 +119,9 @@ function readableType(type) {
         asset_sell: "Sell asset",
         liability_add: "New loan",
         liability_payment: "Loan payment",
+        transfer: "Transfer",
+        appreciating: "Appreciating",
+        depreciating: "Depreciating",
         cash: "Cash",
         bank: "Bank",
         wallet: "Wallet"
@@ -139,32 +185,40 @@ function renderGuideContent() {
             title: "8. Loan Payments And EMIs",
             body: [
                 "Use Repay Loan when you manually pay a liability. Select the loan, enter the payment amount, and Arbor reduces cash while reducing the outstanding liability.",
-                "If an EMI schedule exists and the next date is due, Arbor also treats the scheduled EMI as an expense and cash outflow. Delete old EMI schedules when they are no longer active."
+                "If you enter a tenure and EMI amount when creating a loan, Arbor creates an EMI schedule. The first EMI falls one month after the loan date, and every month that has arrived is deducted from the selected account and from the loan's outstanding balance automatically. Do not also record those EMIs with Repay Loan, or they will be counted twice. The schedule stops when the tenure ends or the loan is fully repaid."
             ]
         },
         {
             title: "9. Dates Matter",
             body: [
                 "The transaction date controls the ledger order, monthly cash flow, recent average expenses, and activity history. Use the real date of the event whenever possible.",
-                "Assets and liabilities can also use start dates. If a start date is in the future, Arbor does not count that asset or liability yet."
+                "Everything is calculated as of today. A transaction, asset, or loan dated in the future is listed but does not change balances or metrics until its date arrives."
             ]
         },
         {
             title: "10. Interest And Growth",
             body: [
                 "For assets, the return percentage estimates appreciation or depreciation from the start date. Appreciating assets increase over time; depreciating assets reduce over time.",
-                "For liabilities, the interest percentage estimates how the outstanding loan grows before repayments. Simple interest grows linearly. Compound interest grows on the accumulated amount."
+                "For liabilities, the interest percentage estimates how the outstanding loan grows. Simple interest grows linearly. Compound interest grows on the accumulated amount. Each repayment stops earning interest from the day it is paid, so the loan reduces the way a real reducing-balance loan does.",
+                "A rate of 0% is allowed. Leaving the field empty uses the default (5% for assets, 8% for loans)."
             ]
         },
         {
-            title: "11. Clean Entry Habits",
+            title: "11. Transfers Between Accounts",
+            body: [
+                "Use Transfer when you move your own money from one account to another, such as withdrawing cash from the bank or topping up a wallet. Pick the account money leaves and the account it goes to.",
+                "A transfer is not income or an expense. It only moves cash, so Total Cash and Net Worth stay the same."
+            ]
+        },
+        {
+            title: "12. Clean Entry Habits",
             body: [
                 "Use consistent names. For example, always use Rent instead of sometimes Rent, House Rent, and Flat Payment. Consistency makes Top Spend and expense averages easier to trust.",
                 "Add one real-world event at a time. If salary arrives in the bank, add one income. If rent leaves that bank, add one expense. If you invest from that bank, add one buy asset."
             ]
         },
         {
-            title: "12. Recommended First Setup",
+            title: "13. Recommended First Setup",
             body: [
                 "Start by creating accounts with current balances. Add this month&apos;s income. Add recurring expenses. Add active assets. Add outstanding loans. Then add any EMI schedules that should continue from now.",
                 "After setup, check Total Cash against your real account balances. Then check Assets, Liabilities, and Net Worth. If those match reality, the dashboard is ready for daily use."
@@ -174,16 +228,16 @@ function renderGuideContent() {
 
     const metrics = [
         ["Income", "All income transactions added to accounts. Loans are not counted as income."],
-        ["Expense", "Expense transactions plus loan repayments and due EMI schedules."],
-        ["Total Cash", "All account opening balances plus cash movements from activity."],
+        ["Expense", "Expense transactions plus loan repayments and every EMI installment that has fallen due."],
+        ["Total Cash", "All account opening balances plus cash movements from activity up to today."],
         ["Net Worth", "Total Cash plus current asset value minus outstanding liabilities."],
         ["Savings", "Percentage of income left after expenses. Formula: (income - expenses) / income."],
-        ["Emergency", "How many expense cycles current cash can cover. Formula: total cash / expenses."],
+        ["Emergency", "How many months of spending current cash can cover. Formula: total cash / 3M avg expense."],
         ["Status", "A quick savings-rate label: Strong, Stable, or Vulnerable."],
         ["Top Spend", "The expense category with the highest total spending."],
         ["3M Avg Expense", "Average monthly spend across the latest three months that have expenses."],
         ["Avg Transaction Size", "Average outgoing transaction size, including expenses and loan payments."],
-        ["Monthly Flow", "Income minus expenses in the latest month with activity."],
+        ["Monthly Flow", "Income minus expenses (including EMIs) in the latest month with activity."],
         ["MRR", "Average monthly salary income across months where salary was recorded."]
     ];
 
@@ -193,7 +247,8 @@ function renderGuideContent() {
         ["Bought mutual fund", "Buy Asset", "Select the paying account. Add return assumptions if useful."],
         ["Sold investment", "Sell Asset", "Select the asset and receiving account."],
         ["Took a loan", "New Loan", "Select account receiving money. Enter interest and EMI if applicable."],
-        ["Paid loan installment", "Repay Loan", "Select the liability so outstanding debt reduces."]
+        ["Paid loan installment", "Repay Loan", "Select the liability so outstanding debt reduces. Skip this for EMIs Arbor already schedules."],
+        ["Moved money between accounts", "Transfer", "Pick the from and to accounts. Not income, not expense."]
     ];
 
     return `
@@ -261,6 +316,9 @@ async function renderProfiles(user) {
     const profiles = await getProfiles(user.uid);
 
     let selectedType = "personal";
+
+    // drop the dashboard's click handler so it can't act on this screen
+    document.body.onclick = null;
 
     document.body.innerHTML = `
     <div class="profile-shell">
@@ -381,15 +439,8 @@ if (!name) {
     };
 
     document.getElementById("logout").onclick = async () => {
-        await logout();
+        await logoutUser();
     };
-    // COLLAPSIBLE SECTIONS
-document.querySelectorAll(".section h2").forEach(header => {
-    header.onclick = () => {
-        const section = header.parentElement;
-        section.classList.toggle("collapsed");
-    };
-});
 }
 
 // ==========================
@@ -424,101 +475,23 @@ if (!accounts || accounts.length === 0) {
     return renderDashboard(user, profileId);
 }
 
-function calculateAssetValue(a) {
-    if (!a.startDate) return a.value;
+const metrics = computeFinancials(state);
 
-    const start = new Date(a.startDate);
-    const today = new Date();
-
-    if (start > today) return 0;
-
-    let years = (today - start) / (1000 * 60 * 60 * 24 * 365);
-
-    if (a.endDate) {
-        const end = new Date(a.endDate);
-        if (today > end) {
-            years = (end - start) / (1000 * 60 * 60 * 24 * 365);
-        }
-    }
-
-    const parsedRate = Number(a.rate);
-    const rate = a.rate === null || a.rate === undefined || a.rate === "" || !Number.isFinite(parsedRate)
-        ? 5
-        : parsedRate;
-
-    const direction = a.type === "depreciating" ? -1 : 1;
-
-if (a.compounding === "compound") {
-    return a.value * Math.pow(1 + direction * rate / 100, years);
-} else {
-    return a.value * (1 + direction * (rate / 100) * years);
-}
-}
-
-function calculateLiabilityValue(l) {
-    if (!l.startDate) return l.value;
-
-    const start = new Date(l.startDate);
-    const today = new Date();
-
-    if (start > today) return 0;
-
-    let years = (today - start) / (1000 * 60 * 60 * 24 * 365);
-
-    if (l.endDate) {
-        const end = new Date(l.endDate);
-        if (today > end) {
-            years = (end - start) / (1000 * 60 * 60 * 24 * 365);
-        }
-    }
-
-    const parsedRate = Number(l.rate);
-    const rate = l.rate === null || l.rate === undefined || l.rate === "" || !Number.isFinite(parsedRate)
-        ? 8
-        : parsedRate;
-
-   if (l.type === "compound") {
-    return l.value * Math.pow(1 + rate / 100, years);
-} else {
-    return l.value * (1 + (rate / 100) * years);
-}
-}
-
+// Values come from the engine so every screen shows the same numbers
+// (interest growth, EMIs and repayments included).
 function getLiabilityOutstanding(l) {
-    const repayments = allTransactions
-        .filter(t => t.type === "liability_payment" && t.liabilityId === l.id)
-        .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
-
-    return Math.max(0, calculateLiabilityValue(l) - repayments);
+    return metrics.liabilityOutstanding[l.id] || 0;
 }
 
 function getAssetCurrentValue(a) {
-    const netFlow = allTransactions
-        .filter(t => t.assetId === a.id)
-        .reduce((sum, t) => {
-            if (t.type === "asset_sell" || t.type === "sell") return sum - Number(t.amount || 0);
-            return sum;
-        }, 0);
-
-    return Math.max(0, calculateAssetValue(a) + netFlow);
+    return metrics.assetValues[a.id] || 0;
 }
 
-const selectedMonth = localStorage.getItem("selectedMonth");
+// No UI sets a month filter any more; clear any stale value so it
+// can't silently hide transactions.
+localStorage.removeItem("selectedMonth");
 
-let transactions = [...allTransactions];
-
-if (selectedMonth) {
-    transactions = allTransactions.filter(t => {
-        if (!t.date) return false;
-
-const txnDate = new Date(t.date);
-if (isNaN(txnDate)) return false;
-
-const txnMonth = txnDate.toISOString().slice(0, 7);
-        return txnMonth === selectedMonth;
-    });
-}
-transactions.sort((a, b) => {
+const transactions = [...allTransactions].sort((a, b) => {
     const t1 = new Date(b.date).getTime();
     const t2 = new Date(a.date).getTime();
 
@@ -527,8 +500,6 @@ transactions.sort((a, b) => {
     return (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0);
 });
 
-
-const metrics = computeFinancials(state);
 const netWorth = metrics.netWorth;
 
 const {
@@ -539,7 +510,6 @@ const {
     emergencyCoverage,
     MRR,
     balances: accountBalances,
-    monthlySavings,
     topCategory,
     status,
     avgExpense,
@@ -552,7 +522,7 @@ if (!["overview", "accounts", "activity", "guide"].includes(activeView)) {
 }
 const accountRows = accounts.map(a => {
     const balance = accountBalances[a.id] || 0;
-    const transactionCount = allTransactions.filter(t => t.accountId === a.id).length;
+    const transactionCount = allTransactions.filter(t => t.accountId === a.id || t.toAccountId === a.id).length;
     const typeLabel = readableType(a.type);
     const details = a.type === "bank" && a.subtype
         ? `${typeLabel} • ${a.subtype}${a.rate ? ` • ${a.rate}% interest` : ""}`
@@ -574,15 +544,28 @@ const accountRows = accounts.map(a => {
 
 const accountNameById = Object.fromEntries(accounts.map(a => [a.id, a.name]));
 
+const todayDate = new Date();
+
+function transactionAccountLabel(t) {
+    const from = accountNameById[t.accountId] || "No account";
+    if (t.type !== "transfer") return escapeHTML(from);
+    return `${escapeHTML(from)} → ${escapeHTML(accountNameById[t.toAccountId] || "No account")}`;
+}
+
+function amountClass(type) {
+    if (type === "transfer") return "";
+    return ["income", "asset_sell", "liability_add"].includes(type) ? "green" : "red";
+}
+
 const transactionRows = transactions.length
     ? transactions.map(t => `
         <div class="list-item">
             <div>
                 <div class="title">${escapeHTML(t.category || "Untitled transaction")}</div>
-                <div class="sub">${readableType(t.type)} • ${t.subtype ? `${escapeHTML(t.subtype)} • ` : ""}${escapeHTML(accountNameById[t.accountId] || "No account")} • ${t.date ? new Date(t.date).toLocaleDateString() : "No date"}</div>
+                <div class="sub">${readableType(t.type)} • ${t.subtype ? `${escapeHTML(t.subtype)} • ` : ""}${transactionAccountLabel(t)} • ${t.date ? new Date(t.date).toLocaleDateString() : "No date"}${toDate(t.date) > todayDate ? " • scheduled" : ""}</div>
             </div>
             <div class="item-actions">
-                <strong class="${t.type === "income" || t.type === "asset_sell" || t.type === "liability_add" ? "green" : "red"}">${formatMoney(t.amount)}</strong>
+                <strong class="${amountClass(t.type)}">${formatMoney(t.amount)}</strong>
                 <button class="delete" data-id="${t.id}" title="Delete transaction">×</button>
             </div>
         </div>
@@ -590,11 +573,11 @@ const transactionRows = transactions.length
     : `<div class="empty-state">No transactions yet. Add income, expenses, assets, or loans from the Add panel.</div>`;
 
 const assetRows = assets.length
-    ? assets.filter(a => !a.startDate || new Date(a.startDate) <= new Date()).map(a => `
+    ? assets.map(a => `
         <div class="list-item">
             <div>
                 <div class="title">${escapeHTML(a.name)}</div>
-                <div class="sub">${readableType(a.type)} • ${a.rate || 0}% • ${a.compounding || "simple"}</div>
+                <div class="sub">${escapeHTML(readableType(a.type))} • ${escapeHTML(a.rate ?? 5)}% • ${escapeHTML(a.compounding || "simple")}${toDate(a.startDate) > todayDate ? ` • starts ${formatDate(a.startDate)}` : ""}</div>
             </div>
             <div class="item-actions">
                 <strong>${formatMoney(getAssetCurrentValue(a))}</strong>
@@ -609,7 +592,7 @@ const liabilityRows = liabilities.length
         <div class="list-item">
             <div>
                 <div class="title">${escapeHTML(l.name)}</div>
-                <div class="sub">${l.rate || 0}% • ${l.type || "simple"} interest</div>
+                <div class="sub">${escapeHTML(l.rate ?? 8)}% • ${escapeHTML(l.type || "simple")} interest${toDate(l.startDate) > todayDate ? ` • starts ${formatDate(l.startDate)}` : ""}</div>
             </div>
             <div class="item-actions">
                 <strong class="red">${formatMoney(getLiabilityOutstanding(l))}</strong>
@@ -619,12 +602,24 @@ const liabilityRows = liabilities.length
     `).join("")
     : `<div class="empty-state">No loans or liabilities yet. Use New loan when money is borrowed.</div>`;
 
+function emiSummary(e) {
+    const info = metrics.emiStatus[e.id] || {};
+    const progress = info.tenure
+        ? `${info.paidCount || 0}/${info.tenure} paid`
+        : `${info.paidCount || 0} paid`;
+    const next = info.completed
+        ? "Completed"
+        : `Next due ${formatDate(info.nextDue || e.firstDate || e.nextDate)}`;
+    const account = accountNameById[e.accountId] ? ` • from ${escapeHTML(accountNameById[e.accountId])}` : " • account missing";
+    return `${next} • ${progress}${account}`;
+}
+
 const emiRows = state.emis.length
     ? state.emis.map(e => `
         <div class="list-item">
             <div>
                 <div class="title">${escapeHTML(e.name || "EMI")}</div>
-                <div class="sub">Due ${e.nextDate ? new Date(e.nextDate).toLocaleDateString() : "not set"}${e.tenure ? ` • ${e.tenure} months` : ""}</div>
+                <div class="sub">${emiSummary(e)}</div>
             </div>
             <div class="item-actions">
                 <strong class="red">${formatMoney(e.amount)}</strong>
@@ -682,7 +677,7 @@ ${activeView === "overview" ? `
     <div class="metric-box">
         <div>Expense</div>
         <strong>${formatMoney(expense)}</strong>
-        <span>Spending plus loan payments.</span>
+        <span>Spending, loan payments and EMIs.</span>
     </div>
 
     <div class="metric-box ${totalCash>=0?'green':'red'}">
@@ -706,8 +701,8 @@ ${activeView === "overview" ? `
 
     <div class="metric-box">
         <div>Emergency</div>
-        <strong>${emergencyCoverage.toFixed(1)}x</strong>
-        <span>Cash divided by expenses.</span>
+        <strong>${emergencyCoverage.toFixed(1)} mo</strong>
+        <span>Months of spending cash can cover.</span>
     </div>
 
     <div class="metric-box">
@@ -718,7 +713,7 @@ ${activeView === "overview" ? `
 
     <div class="metric-box">
         <div>Top Spend</div>
-        <strong>${topCategory}</strong>
+        <strong>${escapeHTML(topCategory)}</strong>
         <span>Largest expense category.</span>
     </div>
 
@@ -837,6 +832,7 @@ ${renderGuideContent()}
         <button data-value="asset_sell">Sell Asset</button>
         <button data-value="liability_add">New Loan</button>
         <button data-value="liability_payment">Repay Loan</button>
+        <button data-value="transfer">Transfer</button>
     </div>
 </div>
 
@@ -847,6 +843,7 @@ ${renderGuideContent()}
     <input id="category" placeholder="Description (e.g. Rent, Salary, Nifty Fund)" />
     
     <select id="accountSelect"></select>
+    <select id="toAccountSelect" style="display:none;"></select>
     <select id="assetSelect" style="display:none;"></select>
     <select id="liabilitySelect" style="display:none;"></select>
 
@@ -924,18 +921,47 @@ ${renderGuideContent()}
 `;
 
 const panel = document.querySelector(".side");
-document.getElementById("addAccount").onclick = async () => {
+
+async function runExclusive(button, action) {
+    if (isSubmitting) return;
+    isSubmitting = true;
+    if (button) button.disabled = true;
+    try {
+        await action();
+    } catch (error) {
+        console.error("Save failed:", error);
+        alert("Could not save. Please check your connection and try again.");
+    } finally {
+        isSubmitting = false;
+        if (button && document.body.contains(button)) button.disabled = false;
+    }
+}
+
+let accType = "cash";
+let accSubType = "savings";
+
+document.getElementById("addAccount").onclick = async (event) => {
+    const button = event.currentTarget;
     const name = document.getElementById("accName").value.trim();
-const subtype = accType === "bank" ? accSubType : null;
-    if (!name) return alert("Enter name");
+    const subtype = accType === "bank" ? accSubType : null;
+    if (!name) return alert("Enter an account name");
 
-    const rate = Number(document.getElementById("accRate").value) || 0;
-    const openingBalance = Number(document.getElementById("accOpeningBalance").value) || 0;
+    if (accounts.some(a => a.name?.trim().toLowerCase() === name.toLowerCase())) {
+        return alert("An account with this name already exists.");
+    }
 
-await createAccount(profileId, name, accType, subtype, rate, openingBalance);
+    const openingRaw = document.getElementById("accOpeningBalance").value.trim();
+    const openingBalance = openingRaw === "" ? 0 : Number(openingRaw);
+    if (!Number.isFinite(openingBalance)) return alert("Enter a valid opening balance (numbers only)");
 
-await renderDashboard(user, profileId);
+    const rate = accType === "bank" ? parseRate(document.getElementById("accRate").value, 0) : 0;
+
+    await runExclusive(button, async () => {
+        await createAccount(profileId, name, accType, subtype, rate, openingBalance);
+        await renderDashboard(user, profileId);
+    });
 };
+
 const overlay = document.getElementById("overlay");
 function openPanel() {
     panel.classList.add("open");
@@ -959,8 +985,20 @@ function selectPanel(panelName) {
 
 const assetSelect = document.getElementById("assetSelect");
 const accountSelect = document.getElementById("accountSelect");
+const toAccountSelect = document.getElementById("toAccountSelect");
 const liabilitySelect = document.getElementById("liabilitySelect");
+const txnSubTypeEl = document.getElementById("txnSubType");
 let txnType = "income";
+
+const subtypeMap = {
+    income: ["salary", "business", "interest", "dividend", "other"],
+    expense: ["fixed", "variable", "discretionary"],
+    asset_buy: ["investment"],
+    asset_sell: ["liquidation"],
+    liability_add: ["loan"],
+    liability_payment: ["repayment"],
+    transfer: ["transfer"]
+};
 
 document.querySelectorAll(".panel-tab").forEach(btn => {
     btn.onclick = () => {
@@ -977,80 +1015,54 @@ document.querySelectorAll("#txnTypeToggle button").forEach(btn => {
 
         btn.classList.add("active");
 
-        updateDynamicFields();
-        updateSubtypes();
+        updateFormForType();
     };
 });
-if (!txnType) {
-    console.error("txnType not found");
+
+function populateAccounts() {
+    const options = accounts
+        .map(a => `<option value="${a.id}">${escapeHTML(a.name)}</option>`)
+        .join("");
+
+    accountSelect.innerHTML = `<option value="">${txnType === "transfer" ? "From account" : "Select Account"}</option>${options}`;
+    toAccountSelect.innerHTML = `<option value="">To account</option>${options}`;
 }
-function updateDynamicFields() {
+
+function populateAssets() {
+    const available = assets.filter(a => getAssetCurrentValue(a) > 0);
+    assetSelect.innerHTML = `<option value="">Select Asset</option>` + available
+        .map(a => `<option value="${a.id}">${escapeHTML(a.name)} (${formatMoney(getAssetCurrentValue(a))})</option>`)
+        .join("");
+}
+
+function populateLiabilities() {
+    const open = liabilities.filter(l => getLiabilityOutstanding(l) > 0);
+    liabilitySelect.innerHTML = `<option value="">Select Loan / Liability</option>` + open
+        .map(l => `<option value="${l.id}">${escapeHTML(l.name)} (${formatMoney(getLiabilityOutstanding(l))})</option>`)
+        .join("");
+}
+
+function updateFormForType() {
     const type = txnType;
 
-    // hide everything first
-    document.getElementById("assetFields")?.classList.add("hidden");
-    document.getElementById("liabilityFields")?.classList.add("hidden");
-    if (liabilitySelect) liabilitySelect.style.display = "none";
+    document.getElementById("assetFields").classList.toggle("hidden", type !== "asset_buy");
+    document.getElementById("liabilityFields").classList.toggle("hidden", type !== "liability_add");
 
-    // ASSET
-    if (type === "asset_buy") {
-        document.getElementById("assetFields")?.classList.remove("hidden");
-    }
+    assetSelect.style.display = type === "asset_sell" ? "block" : "none";
+    liabilitySelect.style.display = type === "liability_payment" ? "block" : "none";
+    toAccountSelect.style.display = type === "transfer" ? "block" : "none";
 
-    // LIABILITY (loan)
-    if (type === "liability_add") {
-        document.getElementById("liabilityFields")?.classList.remove("hidden");
-    }
+    txnSubTypeEl.innerHTML = (subtypeMap[type] || [])
+        .map(s => `<option value="${s}">${s}</option>`)
+        .join("");
+    txnSubTypeEl.style.display = type === "transfer" ? "none" : "";
 
-    if (type === "liability_payment" && liabilitySelect) {
-        liabilitySelect.style.display = "block";
-        populateLiabilities();
-    }
+    populateAccounts();
+    if (type === "asset_sell") populateAssets();
+    if (type === "liability_payment") populateLiabilities();
 }
 
-
-
-const txnSubTypeEl = document.getElementById("txnSubType") || {
-    value: null,
-    innerHTML: ""
-};
-const subtypeMap = {
-    income: ["salary", "business", "interest", "dividend"],
-    expense: ["fixed", "variable", "discretionary"],
-    asset_buy: ["investment"],
-    asset_sell: ["liquidation"],
-    liability_add: ["loan"],
-    liability_payment: ["repayment"]
-};
-
-
-function updateSubtypes() {
-    const type = txnType;
-
-    txnSubTypeEl.innerHTML = "";
-
-    if (!subtypeMap[type]) return;
-
-subtypeMap[type].forEach(s => {
-        txnSubTypeEl.innerHTML += `<option value="${s}">${s}</option>`;
-    });
-
-    // asset visibility
-    if (type === "asset_sell") {
-        if (assetSelect) assetSelect.style.display = "block";
-        populateAssets();
-    } else {
-        if (assetSelect) assetSelect.style.display = "none";
-    }
-}
-
-if (txnType && txnSubTypeEl) {
-
-updateDynamicFields();
-    updateSubtypes();
-}
-let accType = "cash";
-let accSubType = "savings";
+updateFormForType();
 
 document.querySelectorAll("#accTypeToggle button").forEach(btn => {
     btn.onclick = () => {
@@ -1076,278 +1088,316 @@ document.querySelectorAll("#accSubTypeToggle button").forEach(btn => {
         btn.classList.add("active");
     };
 });
-function populateAccounts() {
-    if (!accountSelect) return;
 
-    accountSelect.innerHTML = `<option value="">Select Account</option>`;
-    accounts.forEach(a => {
-        accountSelect.innerHTML += `<option value="${a.id}">${escapeHTML(a.name)}</option>`;
-    });
+function localISODate(date = new Date()) {
+    const offset = date.getTimezoneOffset() * 60000;
+    return new Date(date.getTime() - offset).toISOString().slice(0, 10);
 }
 
-populateAccounts();
-function populateAssets() {
-    if (!assetSelect) return;
+document.getElementById("addTxn").onclick = async (event) => {
+    const button = event.currentTarget;
+    const type = txnType;
 
-    assetSelect.innerHTML = `<option value="">Select Asset</option>`;
-    assets.forEach(a => {
-        assetSelect.innerHTML += `<option value="${a.id}">${escapeHTML(a.name)}</option>`;
-    });
-}
+    const cat = document.getElementById("category").value.trim();
+    const amt = Number(document.getElementById("amount").value);
+    // local date, not UTC (late-night IST entries were landing on the previous day)
+    const date = document.getElementById("date").value || localISODate();
+    const subtype = type === "transfer" ? null : (txnSubTypeEl.value || null);
 
-function populateLiabilities() {
-    if (!liabilitySelect) return;
+    let accountId = accountSelect.value;
+    // single-account profiles: no need to pick it every time
+    if (!accountId && type !== "transfer" && accounts.length === 1) accountId = accounts[0].id;
+    let toAccountId = null;
+    let assetId = null;
+    let liabilityId = null;
 
-    liabilitySelect.innerHTML = `<option value="">Select Loan / Liability</option>`;
-    liabilities.forEach(l => {
-        liabilitySelect.innerHTML += `<option value="${l.id}">${escapeHTML(l.name)} (${formatMoney(getLiabilityOutstanding(l))})</option>`;
-    });
-}
-
-
-
-
-
-
-
-const addTxnBtn = document.getElementById("addTxn");
-
-if (addTxnBtn) {
-    addTxnBtn.onclick = async () => {
-        const type = txnType;
-
-
-const cat = document.getElementById("category").value.trim();
-const amt = Number(document.getElementById("amount").value);
-const date = document.getElementById("date").value || new Date().toISOString().slice(0,10);
-const subtype = document.getElementById("txnSubType")?.value || null;
-
-let accountId = document.getElementById("accountSelect")?.value;
-if (!accountId && accounts.length > 0) accountId = accounts[0].id;
-let assetId = null;
-let liabilityId = null;
-
-// VALIDATION FIRST
-if (!amt || isNaN(amt) || amt <= 0) {
-    alert("Enter valid amount");
-    return;
-}
-
-if (!cat) {
-    alert("Enter category");
-    return;
-}
-
-if (!accountId) {
-    alert("Create or select an account first");
-    return;
-}
-
-if (type === "asset_sell") {
-    assetId = document.getElementById("assetSelect")?.value || null;
-
-    if (!assetId) {
-        alert("Select asset");
+    // VALIDATION FIRST
+    if (!Number.isFinite(amt) || amt <= 0) {
+        alert("Enter a valid amount (numbers only, no commas)");
         return;
     }
-}
 
-if (type === "liability_payment") {
-    liabilityId = document.getElementById("liabilitySelect")?.value || null;
-
-    if (!liabilityId) {
-        alert("Select the loan or liability being paid");
+    if (!cat) {
+        alert("Enter a description");
         return;
     }
-}
 
-// ASSET BUY
-if (type === "asset_buy") {
-    const rate = Number(document.getElementById("assetRate").value) || 5;
-    const direction = document.getElementById("assetDirection").value;
-    const compounding = document.getElementById("assetCompounding").value;
+    if (!accountId) {
+        alert(type === "transfer" ? "Select the account money leaves" : "Select an account");
+        return;
+    }
 
-    const assetRef = await addAsset(
-        profileId,
-        cat,
-        amt,
-        rate,
-        direction,
-        date,
-        null,
-        compounding
-    );
-    assetId = assetRef.id;
-}
+    if (type === "transfer") {
+        toAccountId = toAccountSelect.value || null;
+        if (!toAccountId) {
+            alert("Select the account money goes to");
+            return;
+        }
+        if (toAccountId === accountId) {
+            alert("Pick two different accounts for a transfer");
+            return;
+        }
+    }
 
-// LIABILITY ADD
-if (type === "liability_add") {
-    const rate = Number(document.getElementById("liabilityRate").value) || 8;
-    const tenure = Number(document.getElementById("emiTenure").value);
-    const emiAmount = Number(document.getElementById("emiAmount").value);
-    const liabilityMode = document.getElementById("liabilityCompounding")?.value || "simple";
+    if (type === "asset_sell") {
+        assetId = assetSelect.value || null;
+        if (!assetId) {
+            alert("Select the asset being sold");
+            return;
+        }
+    }
 
-    // create liability
-    const liabilityRef = await addLiability(
-        profileId,
-        cat,
-        amt,
-        rate,
-        date,
-        null,
-        liabilityMode
-    );
-    liabilityId = liabilityRef.id;
+    if (type === "liability_payment") {
+        liabilityId = liabilitySelect.value || null;
+        if (!liabilityId) {
+            alert("Select the loan or liability being paid");
+            return;
+        }
+    }
 
-    // create EMI automatically
-    if (tenure && emiAmount) {
-        await createEMI(profileId, {
-            name: cat,
-            amount: emiAmount,
-            principal: amt,
-            rate,
-            tenure,
-            nextDate: date,
-            accountId
+    let tenure = 0;
+    let emiAmount = 0;
+    if (type === "liability_add") {
+        const tenureRaw = document.getElementById("emiTenure").value.trim();
+        const emiRaw = document.getElementById("emiAmount").value.trim();
+        tenure = Number(tenureRaw);
+        emiAmount = Number(emiRaw);
+
+        if ((tenureRaw || emiRaw) && !(Number.isInteger(tenure) && tenure > 0 && emiAmount > 0)) {
+            alert("For an EMI schedule enter both a whole-number tenure (months) and an EMI amount, or leave both empty.");
+            return;
+        }
+    }
+
+    await runExclusive(button, async () => {
+        // ASSET BUY
+        if (type === "asset_buy") {
+            const assetRef = await addAsset(
+                profileId,
+                cat,
+                amt,
+                parseRate(document.getElementById("assetRate").value, 5),
+                document.getElementById("assetDirection").value,
+                date,
+                null,
+                document.getElementById("assetCompounding").value
+            );
+            assetId = assetRef.id;
+        }
+
+        // LIABILITY ADD
+        if (type === "liability_add") {
+            const rate = parseRate(document.getElementById("liabilityRate").value, 8);
+            const liabilityMode = document.getElementById("liabilityCompounding")?.value || "simple";
+
+            const liabilityRef = await addLiability(
+                profileId,
+                cat,
+                amt,
+                rate,
+                date,
+                null,
+                liabilityMode
+            );
+            liabilityId = liabilityRef.id;
+
+            // EMI schedule: first installment one month after the loan date
+            if (tenure && emiAmount) {
+                const firstDate = addMonths(date, 1).toISOString().slice(0, 10);
+                await createEMI(profileId, {
+                    name: cat,
+                    amount: emiAmount,
+                    principal: amt,
+                    rate,
+                    tenure,
+                    firstDate,
+                    nextDate: firstDate,
+                    accountId,
+                    liabilityId
+                });
+            }
+        }
+
+        // SAVE TRANSACTION
+        await addTransaction(profileId, amt, type, cat, date, {
+            accountId,
+            toAccountId,
+            assetId,
+            liabilityId,
+            subtype
         });
-    }
+
+        await renderDashboard(user, profileId);
+    });
+};
+
+// EMIs created before liabilityId was stored are linked by name.
+function emisForLiability(liability) {
+    return state.emis.filter(e =>
+        e.liabilityId === liability.id || (!e.liabilityId && e.name === liability.name)
+    );
 }
 
-// SAVE TRANSACTION
-await addTransaction(
-    profileId,
-    amt,
-    type,
-    cat,
-    date,
-    null,
-    null,
-    { accountId, assetId, liabilityId, subtype }
-);
-await renderDashboard(user, profileId);
-    };
+async function handleDeleteTransaction(id) {
+    const txn = state.transactions.find(t => t.id === id);
+    if (!txn) return;
+
+    // Buying an asset / taking a loan created a record. Deleting the
+    // transaction must remove that record too, or net worth drifts.
+    if (txn.type === "asset_buy" && txn.assetId) {
+        const others = state.transactions.filter(t => t.assetId === txn.assetId && t.id !== id);
+        if (others.length) {
+            alert("This asset has later sales recorded. Delete those sale transactions first.");
+            return;
+        }
+        if (!confirm("Delete this purchase? The asset it created will be removed too.")) return;
+
+        await deleteTransaction(id, profileId);
+        if (state.assets.some(a => a.id === txn.assetId)) await deleteAsset(profileId, txn.assetId);
+        return;
+    }
+
+    if (txn.type === "liability_add" && txn.liabilityId) {
+        const others = state.transactions.filter(t => t.liabilityId === txn.liabilityId && t.id !== id);
+        if (others.length) {
+            alert("This loan has repayments recorded. Delete those repayment transactions first.");
+            return;
+        }
+        if (!confirm("Delete this loan? The liability and its EMI schedule will be removed too.")) return;
+
+        await deleteTransaction(id, profileId);
+        const liability = state.liabilities.find(l => l.id === txn.liabilityId);
+        if (liability) {
+            await Promise.all(emisForLiability(liability).map(e => deleteEMI(e.id, profileId)));
+            await deleteLiability(profileId, liability.id);
+        }
+        return;
+    }
+
+    if (!confirm("Delete this transaction?")) return;
+    await deleteTransaction(id, profileId);
 }
+
 document.body.onclick = async (e) => {
+    const target = e.target;
+    if (!(target instanceof Element)) return;
+
     // DELETE ACCOUNT
-if (e.target.classList.contains("delete-account")) {
-    const id = e.target.dataset.id;
-    const hasTransactions = state.transactions.some(t => t.accountId === id);
+    if (target.classList.contains("delete-account")) {
+        const id = target.dataset.id;
+        const hasTransactions = state.transactions.some(t => t.accountId === id || t.toAccountId === id);
+        const hasEmis = state.emis.some(em => em.accountId === id);
 
-    if (state.accounts.length <= 1) {
-        alert("At least one account required");
+        if (state.accounts.length <= 1) {
+            alert("At least one account required");
+            return;
+        }
+
+        if (hasTransactions || hasEmis) {
+            alert("This account has transactions or EMI schedules. Keep it so your balances stay accurate.");
+            return;
+        }
+
+        if (!confirm("Delete this account?")) return;
+
+        await runExclusive(null, async () => {
+            await deleteAccount(id, profileId);
+            await renderDashboard(user, profileId);
+        });
         return;
     }
 
-    if (hasTransactions) {
-        alert("This account has transactions. Keep it so your balances stay accurate.");
+    // DELETE EMI
+    if (target.classList.contains("delete-emi")) {
+        const id = target.dataset.id;
+
+        if (!confirm("Delete this EMI schedule? Installments already paid will no longer be counted.")) return;
+
+        await runExclusive(null, async () => {
+            await deleteEMI(id, profileId);
+            await renderDashboard(user, profileId);
+        });
         return;
     }
 
-    if (!confirm("Delete this account?")) return;
-
-    await deleteAccount(id, profileId);
-    await renderDashboard(user, profileId);
-}
-
-// DELETE EMI
-if (e.target.classList.contains("delete-emi")) {
-    const id = e.target.dataset.id;
-
-    if (!confirm("Delete this EMI schedule?")) return;
-
-    await deleteEMI(id, profileId);
-    await renderDashboard(user, profileId);
-}
     // BACK
-    if (e.target.id === "backBtn") {
-        state = {
-        assets: [],
-        liabilities: [],
-        transactions: [],
-        accounts: [],
-        emis: []
-    };
+    if (target.id === "backBtn") {
+        state = EMPTY_STATE();
         localStorage.removeItem("selectedProfile");
         await renderApp(user);
+        return;
     }
 
     // LOGOUT
-    if (e.target.id === "logout") {
-
-        state = {
-        assets: [],
-        liabilities: [],
-        transactions: [],
-        accounts: [],
-        emis: []
-    };
-        await logout();
+    if (target.id === "logout") {
+        await logoutUser();
+        return;
     }
 
     // PANEL OPEN
-    const panelTrigger = e.target.closest("#togglePanel") || e.target.closest("#openAddPanel");
+    const panelTrigger = target.closest("#togglePanel") || target.closest("#openAddPanel");
     if (panelTrigger) {
         if (panelTrigger.dataset.openPanel) {
             selectPanel(panelTrigger.dataset.openPanel);
         }
         openPanel();
+        return;
     }
 
     // PANEL CLOSE
-    if (e.target.closest("#overlay") || e.target.closest("#closePanel")) {
+    if (target.closest("#overlay") || target.closest("#closePanel")) {
         closePanel();
+        return;
     }
 
-    if (e.target.classList.contains("view-tab")) {
-        localStorage.setItem("dashboardView", e.target.dataset.view);
+    if (target.classList.contains("view-tab")) {
+        localStorage.setItem("dashboardView", target.dataset.view);
         await renderDashboard(user, profileId);
+        return;
     }
 
     // DELETE TXN
- if (e.target.classList.contains("delete")) {
-    const id = e.target.dataset.id;
-
-    if (id.startsWith("temp-")) return;
-    if (!confirm("Delete this transaction?")) return;
-
-    await deleteTransaction(id, profileId);
-    await renderDashboard(user, profileId);
-}
+    if (target.classList.contains("delete")) {
+        await runExclusive(null, async () => {
+            await handleDeleteTransaction(target.dataset.id);
+            await renderDashboard(user, profileId);
+        });
+        return;
+    }
 
     // DELETE ASSET
-    if (e.target.classList.contains("delete-asset")) {
-        const id = e.target.dataset.id;
-        const hasTransactions = state.transactions.some(t => t.assetId === id);
+    if (target.classList.contains("delete-asset")) {
+        const id = target.dataset.id;
 
-        if (hasTransactions) {
-            alert("This asset has linked transactions. Delete those transactions first.");
+        if (state.transactions.some(t => t.assetId === id)) {
+            alert("This asset has linked transactions. Delete its purchase transaction instead; that removes the asset too.");
             return;
         }
 
         if (!confirm("Delete this asset?")) return;
-        await deleteAsset(profileId, id);
-        await renderDashboard(user, profileId);
+        await runExclusive(null, async () => {
+            await deleteAsset(profileId, id);
+            await renderDashboard(user, profileId);
+        });
+        return;
     }
 
     // DELETE LIABILITY
-    if (e.target.classList.contains("delete-liability")) {
-        const id = e.target.dataset.id;
-        const hasTransactions = state.transactions.some(t => t.liabilityId === id);
+    if (target.classList.contains("delete-liability")) {
+        const id = target.dataset.id;
+        const liability = state.liabilities.find(l => l.id === id);
 
-        if (hasTransactions) {
-            alert("This liability has linked transactions. Delete those transactions first.");
+        if (state.transactions.some(t => t.liabilityId === id)) {
+            alert("This liability has linked transactions. Delete its loan transaction instead; that removes the liability too.");
             return;
         }
 
-        if (!confirm("Delete this liability?")) return;
-        await deleteLiability(profileId, id);
-        await renderDashboard(user, profileId);
-    }
-
-    // COLLAPSE
-    if (e.target.closest(".toggle")) {
-        const section = e.target.closest(".section");
-        section.classList.toggle("collapsed");
+        if (!confirm("Delete this liability and its EMI schedule?")) return;
+        await runExclusive(null, async () => {
+            if (liability) await Promise.all(emisForLiability(liability).map(em => deleteEMI(em.id, profileId)));
+            await deleteLiability(profileId, id);
+            await renderDashboard(user, profileId);
+        });
     }
 };
 
@@ -1360,6 +1410,7 @@ observeAuth(async (user) => {
     if (user) {
         await renderApp(user);
     } else {
+        document.body.onclick = null;
         document.body.innerHTML = `
         <div class="container">
 
@@ -1424,16 +1475,15 @@ observeAuth(async (user) => {
 
             try {
                 if (action === "signup") {
-                    const credential = await signUp(email, password);
+                    await signUp(email, password);
+                    // observeAuth renders the app once the session is active
                     setAuthMessage("Account created. Loading your workspace...", "success");
-                    await renderApp(credential.user);
                     return;
                 }
 
                 if (action === "login") {
-                    const credential = await login(email, password);
+                    await login(email, password);
                     setAuthMessage("Logged in. Loading your workspace...", "success");
-                    await renderApp(credential.user);
                     return;
                 }
 

@@ -1,14 +1,16 @@
-import { 
-  collection, 
-  addDoc, 
-  getDocs, 
-  query, 
-  where 
+import {
+    collection,
+    addDoc,
+    getDocs,
+    query,
+    where,
+    doc,
+    deleteDoc,
+    updateDoc,
+    serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 import { db } from "../firebase/db.js";
-import { doc, deleteDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 function createdAtValue(createdAt) {
     if (!createdAt) return 0;
@@ -17,9 +19,20 @@ function createdAtValue(createdAt) {
     return 0;
 }
 
+function sortOldestFirst(transactions) {
+    return transactions.sort((a, b) => {
+        const d = new Date(a.date) - new Date(b.date);
+        if (d) return d;
+        return createdAtValue(a.createdAt) - createdAtValue(b.createdAt);
+    });
+}
+
+// Applies one transaction to the per-account running balances and
+// stores the resulting balance of the account it was booked against.
 function applyTransactionToBalances(t, balances) {
-    const acc = t.accountId || "default";
+    const acc = t.accountId;
     const amount = Number(t.amount) || 0;
+    if (!acc) return;
 
     if (balances[acc] === undefined) balances[acc] = 0;
 
@@ -29,9 +42,10 @@ function applyTransactionToBalances(t, balances) {
     else if (t.type === "asset_sell") balances[acc] += amount;
     else if (t.type === "liability_add") balances[acc] += amount;
     else if (t.type === "liability_payment") balances[acc] -= amount;
-    else if (t.type === "transfer") {
-        if (t.from === "cash") balances[acc] -= amount;
-        if (t.to === "cash") balances[acc] += amount;
+    else if (t.type === "transfer" && t.toAccountId && t.toAccountId !== acc) {
+        if (balances[t.toAccountId] === undefined) balances[t.toAccountId] = 0;
+        balances[acc] -= amount;
+        balances[t.toAccountId] += amount;
     }
 
     t.balance = balances[acc];
@@ -42,104 +56,57 @@ async function getOpeningBalances(profileId) {
     const balances = {};
 
     snapshot.forEach(accountDoc => {
-        const account = accountDoc.data();
-        balances[accountDoc.id] = Number(account.openingBalance) || 0;
+        balances[accountDoc.id] = Number(accountDoc.data().openingBalance) || 0;
     });
 
     return balances;
 }
 
+// Recomputes the stored running `balance` on every transaction of a profile.
+// Only writes documents whose balance actually changed.
+export async function recomputeBalances(profileId) {
+    const transactions = sortOldestFirst(await getTransactions(profileId));
+    const runningBalances = await getOpeningBalances(profileId);
+
+    const updates = [];
+    for (const t of transactions) {
+        const previous = t.balance;
+        applyTransactionToBalances(t, runningBalances);
+        if (previous !== t.balance) {
+            updates.push(updateDoc(
+                doc(db, "profiles", profileId, "transactions", t.id),
+                { balance: t.balance ?? null }
+            ));
+        }
+    }
+
+    await Promise.all(updates);
+}
+
 // DELETE TRANSACTION
 export async function deleteTransaction(transactionId, profileId) {
     await deleteDoc(doc(db, "profiles", profileId, "transactions", transactionId));
-
-    const transactions = await getTransactions(profileId);
-
-    // SORT oldest → newest
-    transactions.sort((a, b) => {
-        const d = new Date(a.date) - new Date(b.date);
-        if (d !== 0) return d;
-        return (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0);
-    });
-
-    const runningBalances = await getOpeningBalances(profileId);
-
-    for (const t of transactions) {
-        applyTransactionToBalances(t, runningBalances);
-
-        await updateDoc(doc(db, "profiles", profileId, "transactions", t.id), {
-            balance: t.balance
-        });
-    }
+    await recomputeBalances(profileId);
 }
 
-// ADD TRANSACTION (NO BALANCE LOGIC)
-export async function addTransaction(profileId, amount, type, category, date, from = null, to = null, linkedId = null) {
-    const transactions = await getTransactions(profileId);
-    const localId = `new-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-
-    const newTxn = {
-    localId,
-    amount: Number(amount),
-    type,
-    category,
-    date,
-    from,
-    to,
-    accountId: linkedId?.accountId || null,
-    assetId: linkedId?.assetId || null,
-    liabilityId: linkedId?.liabilityId || null,
-    subtype: linkedId?.subtype || null,
-    createdAt: Date.now()
-};
-
-    const updated = [...transactions, newTxn];
-
-    // SORT
-    updated.sort((a, b) => {
-        const d = new Date(a.date) - new Date(b.date);
-        if (d !== 0) return d;
-        return createdAtValue(a.createdAt) - createdAtValue(b.createdAt);
+// ADD TRANSACTION
+// linked = { accountId, toAccountId, assetId, liabilityId, subtype }
+export async function addTransaction(profileId, amount, type, category, date, linked = {}) {
+    await addDoc(collection(db, "profiles", profileId, "transactions"), {
+        profileId,
+        amount: Number(amount),
+        type,
+        category,
+        date,
+        accountId: linked.accountId || null,
+        toAccountId: linked.toAccountId || null,
+        assetId: linked.assetId || null,
+        liabilityId: linked.liabilityId || null,
+        subtype: linked.subtype || null,
+        createdAt: serverTimestamp()
     });
 
-    // 🔥 BALANCE ENGINE (UPDATED FOR TRANSFERS)
-    const runningBalances = await getOpeningBalances(profileId);
-
-    for (const t of updated) {
-        applyTransactionToBalances(t, runningBalances);
-    }
-
-    const finalTxn = updated.find(t => t.localId === localId);
-
-   await addDoc(collection(db, "profiles", profileId, "transactions"), {
-    profileId,
-    amount: finalTxn.amount,
-    type: finalTxn.type,
-    category: finalTxn.category,
-    date: finalTxn.date,
-
-    assetId: linkedId?.assetId || null,
-    liabilityId: linkedId?.liabilityId || null,
-    accountId: linkedId?.accountId || null,
-    subtype: linkedId?.subtype || null,
-
-    balance: finalTxn.balance,
-    createdAt: serverTimestamp()
-});
-    // UPDATE OLD TXNS
-    const existing = updated.filter(t => t.id);
-
-// Run updates in parallel instead of sequential
-await Promise.all(
-    existing.map(t => {
-        if (!t.id) return Promise.resolve();
-
-        return updateDoc(
-            doc(db, "profiles", profileId, "transactions", t.id),
-            { balance: t.balance }
-        );
-    })
-);
+    await recomputeBalances(profileId);
 }
 
 // GET TRANSACTIONS
@@ -151,14 +118,8 @@ export async function getTransactions(profileId) {
 
     const snapshot = await getDocs(q);
 
-    const transactions = [];
-
-    snapshot.forEach(doc => {
-        transactions.push({
-            id: doc.id,
-            ...doc.data()
-        });
-    });
-
-    return transactions;
+    return snapshot.docs.map(d => ({
+        id: d.id,
+        ...d.data()
+    }));
 }

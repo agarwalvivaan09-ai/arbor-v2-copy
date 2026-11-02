@@ -1,9 +1,22 @@
+// Progressive slab tax (simple Indian-style slabs, editable later).
+// Each rate applies only to the income that falls inside its slab.
+const SLABS = [
+    { upTo: 250000, rate: 0 },
+    { upTo: 500000, rate: 0.05 },
+    { upTo: 1000000, rate: 0.2 },
+    { upTo: Infinity, rate: 0.3 }
+];
+
 export function computeTax(income) {
-    // simple Indian-style slab logic (editable later)
+    const taxable = Math.max(0, Number(income) || 0);
+    let tax = 0;
+    let lower = 0;
 
-    if (income <= 250000) return 0;
-    if (income <= 500000) return income * 0.05;
-    if (income <= 1000000) return income * 0.2;
+    for (const { upTo, rate } of SLABS) {
+        if (taxable <= lower) break;
+        tax += (Math.min(taxable, upTo) - lower) * rate;
+        lower = upTo;
+    }
 
-    return income * 0.3;
+    return tax;
 }
