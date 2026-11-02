@@ -1,4 +1,7 @@
-import { signUp, login, resetPassword, observeAuth, logout } from "./firebase/auth.js";
+import {
+    signUp, login, resetPassword, observeAuth, logout,
+    signInWithGoogle, signInWithApple, completeRedirect, sendPhoneCode, resetPhoneVerifier, setRemember
+} from "./firebase/auth.js";
 import { createProfile, getProfiles } from "./profiles/profiles.js";
 import { addTransaction, getTransactions } from "./modules/transactions.js";
 import { addAsset, addLiability, getAssets, getLiabilities } from "./modules/networth.js";
@@ -12,6 +15,9 @@ import { deleteAccount } from "./modules/accounts.js";
 import { deleteEMI } from "./modules/emi.js";
 import { HFRI_LINKS } from "./modules/hfri.js";
 import { CREATOR, HFRI_SITE, ARBOR, LOGO_SVG } from "./modules/site.js";
+import { renderShell, kpi } from "./modules/ui.js";
+import { stressView, bindStress, forecastView, bindForecast } from "./modules/personal-scenarios.js";
+import { renderBusiness } from "./business.js";
 let state = {
     assets: [],
     liabilities: [],
@@ -32,8 +38,8 @@ async function renderApp(user) {
     try {
         // a profile id left in localStorage by another user (or a deleted
         // profile) must never be opened
+        const ownProfiles = selectedProfile ? await getProfiles(user.uid) : [];
         if (selectedProfile) {
-            const ownProfiles = await getProfiles(user.uid);
             if (!ownProfiles.some(p => p.id === selectedProfile)) {
                 localStorage.removeItem("selectedProfile");
                 selectedProfile = null;
@@ -41,6 +47,15 @@ async function renderApp(user) {
         }
 
         if (selectedProfile) {
+            const profile = ownProfiles.find(p => p.id === selectedProfile);
+            if (profile?.type === "business") {
+                await renderBusiness({
+                    user, profile,
+                    onSwitch: async () => { localStorage.removeItem("selectedProfile"); await renderApp(user); },
+                    onLogout: logoutUser
+                });
+                return;
+            }
             await renderDashboard(user, selectedProfile);
         } else {
             await renderProfiles(user);
@@ -146,6 +161,8 @@ function renderGuideContent() {
         ["guide-tax", "Step 7 · Tax"],
         ["guide-metrics", "Step 8 · Read the dashboard"],
         ["guide-hfri", "HFRI score"],
+        ["guide-stress", "Stress test"],
+        ["guide-forecast", "Forecast"],
         ["guide-mistakes", "Fixing mistakes"],
         ["guide-routine", "Monthly routine"],
         ["guide-trouble", "Troubleshooting"]
@@ -170,13 +187,11 @@ function renderGuideContent() {
         ["Net Worth", "Total Cash + current value of assets − what you still owe on loans."],
         ["Savings", "(Income − Expense) ÷ Income. The share of income you kept."],
         ["Emergency", "Months of spending your cash covers: Total Cash ÷ 3M Avg Expense."],
-        ["Status", "Quick label from the savings rate: Strong (40%+), Stable (15%+), else Vulnerable."],
         ["HFRI", "Household Financial Resilience Index, 0–100. See the HFRI section below."],
         ["Top Spend", "The description with the most money spent (\"Rent\" and \"rent\" count together)."],
         ["3M Avg Expense", "Average spending of the latest three months that had spending."],
-        ["Avg Transaction Size", "Average size of an outgoing payment (expenses, repayments, EMIs)."],
         ["Monthly Flow", "Income − spending in the latest month with activity."],
-        ["MRR", "Average monthly income from entries with the salary subtype."]
+        ["Loan payments", "Average monthly EMIs and loan repayments over your recent months. Lower relative to income is safer."]
     ];
 
     const entryTypes = [
@@ -216,6 +231,8 @@ ${section("guide-map", "Orientation", "Find your way around", `
         <div class="guide-table-row"><span>Sidebar</span><strong>Activity</strong><p>The full ledger, newest first. Filter by type, search, and delete entries with ×.</p></div>
         <div class="guide-table-row"><span>Sidebar</span><strong>Accounts</strong><p>Your balance sheet: cash accounts, assets, liabilities and EMI schedules.</p></div>
         <div class="guide-table-row"><span>Sidebar</span><strong>Resilience</strong><p>Your HFRI score, its four dimensions, the inputs used, and the score bands.</p></div>
+        <div class="guide-table-row"><span>Sidebar</span><strong>Stress test</strong><p>Apply a shock (job loss, medical bill, market crash…) and see whether your cash and HFRI hold up.</p></div>
+        <div class="guide-table-row"><span>Sidebar</span><strong>Forecast</strong><p>A Monte Carlo projection of your net worth over the coming years.</p></div>
         <div class="guide-table-row"><span>Sidebar</span><strong>Guide</strong><p>This manual. Use the buttons at the top to jump to any step.</p></div>
         <div class="guide-table-row"><span>Top right</span><strong>+ Add entry</strong><p>Opens the Add data panel. Everything you record goes through it. Close it with × or by clicking outside.</p></div>
         <div class="guide-table-row"><span>Top right</span><strong>Log out</strong><p>Signs you out and returns to the Arbor home page. Your data stays saved.</p></div>
@@ -223,7 +240,7 @@ ${section("guide-map", "Orientation", "Find your way around", `
 `)}
 
 ${section("guide-setup", "Step 1", "Create and open a profile", `
-    <p>A profile is a separate workspace. Money in one profile never mixes with another, so use one for Personal, one for Business, and so on.</p>
+    <p>A workspace keeps money separate. <strong>Personal</strong> and <strong>Family</strong> workspaces track household money like this guide describes. <strong>Business</strong> workspaces use full double-entry books instead: journal, ledger, trial balance and final accounts.</p>
     ${steps([
         "Press <strong>Switch</strong> next to the workspace name in the sidebar to reach your workspaces. (New users land there right after signing up.)",
         "Under <strong>New workspace</strong>, type a name such as <em>Personal</em>.",
@@ -258,7 +275,7 @@ ${section("guide-daily", "Step 3", "Record income and spending", `
         "Pick the <strong>date</strong>. If you leave it empty, Arbor uses today.",
         "Press <strong>Save entry</strong>. The dashboard updates immediately."
     ])}
-    ${note("Subtypes matter: salary feeds MRR, and fixed and variable expenses count as <strong>essential spending</strong> in your HFRI score. Discretionary spending does not.")}
+    ${note("Subtypes matter: fixed and variable expenses count as <strong>essential spending</strong> in your HFRI score. Discretionary spending does not.")}
     <div class="guide-actions">${tryIt("Add income", "activity", "income")}${tryIt("Add an expense", "activity", "expense")}</div>
 `)}
 
@@ -356,6 +373,31 @@ ${section("guide-hfri", "Resilience", "HFRI: Household Financial Resilience Inde
         <a class="guide-try ghost" href="${HFRI_LINKS.paper}" target="_blank" rel="noopener">Read the research paper →</a>
     </div>
     <p class="guide-small">The calculator lets you try what-if scenarios and income or spending shocks with your own numbers. Arbor's figures are good inputs for it.</p>
+`)}
+
+${section("guide-stress", "Analysis", "Stress test: what if something goes wrong?", `
+    <p>The stress test starts from your real monthly averages (income after tax, spending, loan payments) and the cash you hold today, then applies a shock.</p>
+    ${steps([
+        "Open <strong>Stress test</strong> in the sidebar.",
+        "Pick a ready-made scenario (Job loss, Pay cut, Medical emergency, Cost-of-living spike, Market crash, Perfect storm), or type your own numbers: how much income falls, how much spending rises, for how many months, any one-off cost, and how far investments fall.",
+        "Read the result: whether your cash stays positive, the month it would run out, how long it would last if the shock never ended, and your net worth afterwards.",
+        "Compare your HFRI score today, during the shock and after it, recalculated with the same research model.",
+        "Scroll down to <strong>All scenarios at a glance</strong> to see which shocks you can absorb and which you can't."
+    ])}
+    ${note("Loan EMIs keep being paid during a shock, because they don't stop when income does. Investments falling in value changes your net worth but not your cash, unless you sell.")}
+    <div class="guide-actions">${goTo("Open Stress test", "stress")}</div>
+`)}
+
+${section("guide-forecast", "Analysis", "Forecast: thousands of possible futures", `
+    <p>The forecast is a Monte Carlo simulation. It plays out 2,000 possible futures, month by month, and shows the range your net worth could end up in.</p>
+    ${steps([
+        "Open <strong>Forecast</strong> in the sidebar. The assumptions are pre-filled from your own entries.",
+        "Set how many years ahead to look, and adjust income growth, inflation, how much income and spending vary month to month, investment volatility, and the chance of losing income in a year.",
+        "Read the results: the most likely (median) net worth, a bad case (1 in 20 futures end lower) and a good case (1 in 20 end higher), plus the chance your net worth grows, beats inflation, or your cash ever runs short.",
+        "The chart's dark line is the median. The inner band covers the middle half of futures and the outer band 90% of them."
+    ])}
+    ${note("Each loan is paid down by its EMI on a reducing balance, and each investment grows at the return you entered. A forecast is a range, not a promise. Re-run it as your situation changes.")}
+    <div class="guide-actions">${goTo("Open Forecast", "forecast")}</div>
 `)}
 
 ${section("guide-mistakes", "Corrections", "Fixing mistakes", `
@@ -469,8 +511,8 @@ async function renderProfiles(user) {
 
     const typeHint = {
         personal: "Your own income, spending, savings and loans.",
-        business: "A business or freelance practice, kept separate from personal money.",
-        family: "Shared household finances for the whole family."
+        business: "Full double-entry books: journal, ledger, trial balance, Trading and P&L accounts, balance sheet.",
+        family: "Shared household finances, with the same tools as Personal."
     };
 
     document.body.innerHTML = `
@@ -478,7 +520,7 @@ async function renderProfiles(user) {
         <header class="ws-top">
             <a class="sb-brand dark" href="index.html">${LOGO_SVG}<span><strong>Arbor</strong><small>by Vivaan Agarwal</small></span></a>
             <div class="top-actions">
-                <div class="user-chip"><span>${escapeHTML((user.email || "?")[0].toUpperCase())}</span><em>${escapeHTML(user.email)}</em></div>
+                <div class="user-chip"><span>${escapeHTML((user.displayName || user.email || user.phoneNumber || "?")[0].toUpperCase())}</span><em>${escapeHTML(user.displayName || user.email || user.phoneNumber || "")}</em></div>
                 <button id="logout" class="btn btn-ghost">Log out</button>
             </div>
         </header>
@@ -636,16 +678,13 @@ const {
     totalCash,
     savingsRate,
     emergencyCoverage,
-    MRR,
     balances: accountBalances,
     topCategory,
-    status,
     avgExpense,
-    avgTransaction,
     lastMonthFlow,
     hfri
 } = metrics;
-const VIEWS = ["overview", "activity", "accounts", "resilience", "guide"];
+const VIEWS = ["overview", "activity", "accounts", "resilience", "stress", "forecast", "guide"];
 let activeView = localStorage.getItem("dashboardView") || "overview";
 if (!VIEWS.includes(activeView)) activeView = "overview";
 
@@ -821,31 +860,29 @@ const compPct = v => ((Math.max(0, v) / compTotal) * 100).toFixed(1);
 const hour = new Date().getHours();
 const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
 
-const kpi = (label, value, hint, cls = "") => `
-    <div class="kpi ${cls}">
-        <div class="kpi-label">${label}</div>
-        <div class="kpi-value">${value}</div>
-        <div class="kpi-hint">${hint}</div>
-    </div>`;
-
 const hfriRing = hfri.available
     ? `<div class="ring" data-band="${hfri.band.key}" style="--v:${hfri.total.toFixed(1)}"><strong>${hfri.total.toFixed(1)}</strong></div>`
     : `<div class="ring" style="--v:0"><strong>—</strong></div>`;
 
 const NAV = [
-    ["overview", "Overview", "M3 13h8V3H3zm0 8h8v-6H3zm10 0h8V11h-8zm0-18v6h8V3z"],
-    ["activity", "Activity", "M4 6h16M4 12h16M4 18h10"],
-    ["accounts", "Accounts", "M3 10h18M5 10V20m4-10v10m6-10v10m4-10v10M2 20h20M12 3l9 5H3z"],
-    ["resilience", "Resilience", "M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6z"],
-    ["guide", "Guide", "M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2zm0 0v16"]
+    { key: "overview", label: "Overview" },
+    { key: "activity", label: "Activity" },
+    { key: "accounts", label: "Accounts" },
+    { section: "Analysis" },
+    { key: "resilience", label: "Resilience" },
+    { key: "stress", label: "Stress test" },
+    { key: "forecast", label: "Forecast" },
+    { section: "Help" },
+    { key: "guide", label: "Guide" }
 ];
-const icon = d => `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${d}"/></svg>`;
 
 const VIEW_META = {
     overview: [`${greeting}`, `${escapeHTML(profile.name)} · ${todayDate.toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" })}`],
     activity: ["Activity", "Every entry in this workspace, newest first."],
     accounts: ["Accounts & balance sheet", "Where your cash lives, what you own and what you owe."],
     resilience: ["Financial resilience", "Your Household Financial Resilience Index (HFRI), by Vivaan Agarwal."],
+    stress: ["Stress test", "What happens to your cash and resilience if something goes wrong?"],
+    forecast: ["Forecast", "Thousands of simulated futures for your net worth (Monte Carlo)."],
     guide: ["Guide", "Step-by-step instructions for every screen and every entry."]
 };
 
@@ -881,12 +918,10 @@ overview: `
     ${kpi("Total cash", formatMoney(totalCash), "Across all accounts", totalCash < 0 ? "neg" : "")}
     ${kpi("Savings rate", `${(savingsRate * 100).toFixed(1)}%`, "Income kept after expenses", savingsRate < 0 ? "neg" : "")}
     ${kpi("Emergency cover", `${emergencyCoverage.toFixed(1)} mo`, "Months of spending cash covers")}
-    ${kpi("Status", escapeHTML(status), "From your savings rate", `status-${status.toLowerCase()}`)}
     ${kpi("Monthly flow", formatMoney(lastMonthFlow), "Latest month: income − spending", lastMonthFlow < 0 ? "neg" : "pos")}
     ${kpi("3M avg expense", formatMoney(avgExpense), "Average recent monthly spend")}
     ${kpi("Top spend", escapeHTML(topCategory), "Largest spending category")}
-    ${kpi("Avg transaction", formatMoney(avgTransaction), "Typical outgoing payment")}
-    ${kpi("MRR", formatMoney(MRR), "Average monthly salary")}
+    ${kpi("Loan payments", formatMoney(hfri.baseline?.debtService || 0), "Average EMIs + repayments per month")}
 </div>
 
 <div class="grid-2-1">
@@ -977,60 +1012,17 @@ ${renderHFRIPanel(hfri)}
     </section>
 </div>`,
 
+stress: activeView === "stress" ? stressView(metrics, state) : "",
+forecast: activeView === "forecast" ? forecastView(metrics, state) : "",
 guide: renderGuideContent()
 };
 
-document.body.innerHTML = `
-<div class="shell">
-    <aside class="sidebar">
-        <a class="sb-brand" href="index.html" title="Arbor home">${LOGO_SVG}<span><strong>Arbor</strong><small>by Vivaan Agarwal</small></span></a>
-
-        <div class="sb-profile">
-            <span class="sb-avatar">${escapeHTML((profile.name || "W")[0].toUpperCase())}</span>
-            <div><strong>${escapeHTML(profile.name)}</strong><small>${escapeHTML(profile.type || "personal")} workspace</small></div>
-            <button id="backBtn" class="sb-switch" title="Switch workspace">Switch</button>
-        </div>
-
-        <nav class="sb-nav" aria-label="Dashboard">
-            ${NAV.map(([key, label, d]) => `<button class="view-tab ${activeView === key ? "active" : ""}" data-view="${key}">${icon(d)}<span>${label}</span></button>`).join("")}
-        </nav>
-
-        <div class="sb-foot">
-            <a href="${HFRI_SITE.calculator}" target="_blank" rel="noopener">HFRI Calculator ↗</a>
-            <a href="index.html">Arbor home</a>
-            <div class="credit">
-                <small>Designed &amp; built by</small>
-                <a href="${CREATOR.website}" target="_blank" rel="noopener">Vivaan Agarwal ↗</a>
-            </div>
-        </div>
-    </aside>
-
-    <div class="main">
-        <header class="topbar">
-            <div class="page-title">
-                <h1>${VIEW_META[activeView][0]}</h1>
-                <p>${VIEW_META[activeView][1]}</p>
-            </div>
-            <div class="top-actions">
-                <button id="togglePanel" class="btn btn-primary" data-open-panel="activity">+ Add entry</button>
-                <div class="user-chip" title="${escapeHTML(user.email)}"><span>${escapeHTML((user.email || "?")[0].toUpperCase())}</span><em>${escapeHTML(user.email)}</em></div>
-                <button id="logout" class="btn btn-ghost">Log out</button>
-            </div>
-        </header>
-
-        <main class="content view-${activeView}">
-            ${views[activeView]}
-        </main>
-
-        <footer class="app-footer">
-            <span>Arbor ${ARBOR.version} · Designed and built by <a href="${CREATOR.website}" target="_blank" rel="noopener">Vivaan Agarwal</a></span>
-            <span><a href="${HFRI_SITE.research}" target="_blank" rel="noopener">HFRI research</a> · <a href="${CREATOR.linkedin}" target="_blank" rel="noopener">LinkedIn</a> · <a href="${CREATOR.github}" target="_blank" rel="noopener">GitHub</a></span>
-        </footer>
-    </div>
-</div>
-
-<div class="overlay" id="overlay"></div>
-
+document.body.innerHTML = renderShell({
+    user, profile, nav: NAV, activeView,
+    title: VIEW_META[activeView][0],
+    subtitle: VIEW_META[activeView][1],
+    content: views[activeView],
+    drawer: `
 <aside class="side drawer" aria-label="Add data">
     <div class="panel-head">
         <div>
@@ -1111,8 +1103,11 @@ document.body.innerHTML = `
         </div>
         <button id="addAccount" class="btn btn-primary btn-block">Create account</button>
     </div>
-</aside>
-`;
+</aside>`
+});
+
+if (activeView === "stress") bindStress(metrics, state);
+if (activeView === "forecast") bindForecast(metrics, state);
 
 // ---------- ledger filter + search (no re-render needed) ----------
 const ledgerSearch = document.getElementById("ledgerSearch");
@@ -1653,152 +1648,214 @@ document.body.onclick = async (e) => {
 // AUTH
 // ==========================
 
-observeAuth(async (user) => {
-    if (user) {
-        await renderApp(user);
-    } else {
-        document.body.onclick = null;
-        let authMode = new URLSearchParams(window.location.search).get("mode") === "signup" ? "signup" : "login";
+// ==========================
+// AUTH SCREEN
+// ==========================
+const GOOGLE_SVG = `<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#4285F4" d="M22.6 12.2c0-.8-.1-1.5-.2-2.2H12v4.2h5.9a5 5 0 0 1-2.2 3.3v2.7h3.6c2.1-1.9 3.3-4.8 3.3-8z"/><path fill="#34A853" d="M12 23c3 0 5.5-1 7.3-2.7l-3.6-2.8c-1 .7-2.2 1.1-3.7 1.1-2.9 0-5.3-1.9-6.2-4.5H2.1v2.9A11 11 0 0 0 12 23z"/><path fill="#FBBC05" d="M5.8 14.1a6.6 6.6 0 0 1 0-4.2V7H2.1a11 11 0 0 0 0 10z"/><path fill="#EA4335" d="M12 5.4c1.6 0 3 .6 4.2 1.6l3.1-3.1A11 11 0 0 0 2.1 7l3.7 2.9C6.7 7.3 9.1 5.4 12 5.4z"/></svg>`;
+const APPLE_SVG = `<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M16.4 12.6c0-2.6 2.1-3.8 2.2-3.9-1.2-1.8-3.1-2-3.7-2-1.6-.2-3.1.9-3.9.9-.8 0-2-.9-3.4-.9-1.7 0-3.3 1-4.2 2.6-1.8 3.1-.5 7.7 1.3 10.2.9 1.2 1.9 2.6 3.2 2.6 1.3-.1 1.8-.8 3.3-.8s2 .8 3.4.8c1.4 0 2.3-1.3 3.1-2.5 1-1.4 1.4-2.8 1.4-2.9-.1 0-2.7-1-2.7-4.1zM13.9 4.9c.7-.9 1.2-2 1.1-3.2-1 0-2.3.7-3 1.6-.7.8-1.2 2-1.1 3.1 1.2.1 2.3-.6 3-1.5z"/></svg>`;
+const PHONE_SVG = `<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M7 2h10a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1zm4 17h2"/></svg>`;
 
-        document.body.innerHTML = `
-        <div class="auth-shell">
-            <section class="auth-brand">
-                <a class="sb-brand" href="index.html">${LOGO_SVG}<span><strong>Arbor</strong><small>by Vivaan Agarwal</small></span></a>
-                <div class="auth-pitch">
-                    <h1>Understand your financial position, <em>not just your transactions.</em></h1>
-                    <ul>
-                        <li>Accounts, ledger, assets, loans and EMIs in one workspace</li>
-                        <li>Net worth and 13 live metrics, calculated as of today</li>
-                        <li>Resilience scored with the HFRI research model</li>
-                    </ul>
-                </div>
-                <div class="auth-credit">
-                    <span>Designed &amp; built by</span>
-                    <a href="${CREATOR.website}" target="_blank" rel="noopener">Vivaan Agarwal ↗</a>
-                </div>
-            </section>
+const AUTH_ERRORS = {
+    "auth/operation-not-allowed": "This sign-in method isn't switched on for Arbor yet. Please use another option.",
+    "auth/unauthorized-domain": "Sign-in isn't allowed from this web address yet. The site owner needs to add it in Firebase.",
+    "auth/account-exists-with-different-credential": "You already have an Arbor account with this email. Sign in the way you did before.",
+    "auth/invalid-phone-number": "Enter the phone number with its country code, e.g. +91 98765 43210.",
+    "auth/missing-phone-number": "Enter your phone number.",
+    "auth/invalid-verification-code": "That code isn't right. Check the SMS and try again.",
+    "auth/code-expired": "That code has expired. Send a new one.",
+    "auth/quota-exceeded": "Too many SMS codes have been sent. Try again later.",
+    "auth/captcha-check-failed": "The security check failed. Reload the page and try again.",
+    "auth/popup-blocked": "Your browser blocked the sign-in window. Allow pop-ups for this site and try again."
+};
+const SILENT_AUTH_ERRORS = ["auth/popup-closed-by-user", "auth/cancelled-popup-request", "auth/user-cancelled"];
 
-            <section class="auth-panel">
-                <a class="auth-back" href="index.html">← Back to Arbor home</a>
-                <div class="auth-card">
-                    <div class="auth-tabs" role="tablist">
-                        <button class="auth-tab" data-mode="login" role="tab">Log in</button>
-                        <button class="auth-tab" data-mode="signup" role="tab">Create account</button>
+function renderAuthScreen() {
+    document.body.onclick = null;
+    let authMode = new URLSearchParams(window.location.search).get("mode") === "signup" ? "signup" : "login";
+    let confirmation = null;
+
+    document.body.innerHTML = `
+    <div class="auth-shell">
+        <section class="auth-brand">
+            <a class="sb-brand" href="index.html">${LOGO_SVG}<span><strong>Arbor</strong><small>by Vivaan Agarwal</small></span></a>
+            <div class="auth-pitch">
+                <h1>Understand your financial position, <em>not just your transactions.</em></h1>
+                <ul>
+                    <li>Household finance with HFRI resilience scoring</li>
+                    <li>Stress tests and Monte Carlo forecasts on your own numbers</li>
+                    <li>Full double-entry books and final accounts for businesses</li>
+                </ul>
+            </div>
+            <div class="auth-credit">
+                <span>Designed &amp; built by</span>
+                <a href="${CREATOR.website}" target="_blank" rel="noopener">Vivaan Agarwal ↗</a>
+            </div>
+        </section>
+
+        <section class="auth-panel">
+            <a class="auth-back" href="index.html">← Back to Arbor home</a>
+            <div class="auth-card">
+                <h2 id="authTitle"></h2>
+                <p id="authSub" class="muted"></p>
+
+                <div id="authMessage" class="auth-message" role="status" aria-live="polite"></div>
+
+                <div id="providerView">
+                    <div class="sso">
+                        <button class="sso-btn" id="googleBtn" type="button">${GOOGLE_SVG}<span>Continue with Google</span></button>
+                        <button class="sso-btn apple" id="appleBtn" type="button">${APPLE_SVG}<span>Continue with Apple</span></button>
+                        <button class="sso-btn" id="phoneBtn" type="button">${PHONE_SVG}<span>Continue with phone</span></button>
                     </div>
-                    <h2 id="authTitle"></h2>
-                    <p id="authSub" class="muted"></p>
 
-                    <label class="field">Email<input id="email" type="email" autocomplete="email" placeholder="you@example.com" /></label>
-                    <label class="field">Password<input id="password" type="password" autocomplete="current-password" placeholder="At least 6 characters" /></label>
-                    <div id="authMessage" class="auth-message" role="status"></div>
+                    <div class="divider"><span>or with email</span></div>
 
-                    <button id="login" class="btn btn-primary btn-block">Log in</button>
-                    <button id="signup" class="btn btn-primary btn-block">Create account</button>
-                    <button id="reset" class="btn-link">Forgot your password?</button>
+                    <form id="emailForm" novalidate>
+                        <label class="field" id="nameField">Your name<input id="displayName" autocomplete="name" placeholder="Full name" /></label>
+                        <label class="field">Email<input id="email" type="email" autocomplete="email" placeholder="you@example.com" required /></label>
+                        <label class="field">
+                            <span class="field-top">Password <button type="button" class="btn-link small" id="forgotBtn">Forgot password?</button></span>
+                            <span class="pw-wrap"><input id="password" type="password" autocomplete="current-password" placeholder="At least 6 characters" required /><button type="button" class="pw-toggle" id="pwToggle" aria-label="Show password">Show</button></span>
+                        </label>
+                        <label class="check-row"><input type="checkbox" id="remember" checked /> Keep me signed in on this device</label>
+                        <button id="emailSubmit" class="btn btn-primary btn-block" type="submit"></button>
+                    </form>
+
+                    <p class="auth-switch" id="authSwitch"></p>
                 </div>
-                <p class="auth-foot">Arbor is an educational tool and does not provide financial advice. HFRI by <a href="${HFRI_SITE.research}" target="_blank" rel="noopener">Vivaan Agarwal</a>.</p>
-            </section>
-        </div>
-        `;
 
-        function setAuthMode(mode) {
-            authMode = mode;
-            document.querySelectorAll(".auth-tab").forEach(t => t.classList.toggle("active", t.dataset.mode === mode));
-            document.getElementById("login").hidden = mode !== "login";
-            document.getElementById("reset").hidden = mode !== "login";
-            document.getElementById("signup").hidden = mode !== "signup";
-            document.getElementById("authTitle").textContent = mode === "login" ? "Welcome back" : "Create your workspace";
-            document.getElementById("authSub").textContent = mode === "login"
-                ? "Log in to open your Arbor dashboard."
-                : "Free to use. No bank login needed.";
-            document.getElementById("password").autocomplete = mode === "login" ? "current-password" : "new-password";
-            document.getElementById("authMessage").textContent = "";
-            document.getElementById("authMessage").className = "auth-message";
-        }
+                <div id="phoneView" hidden>
+                    <form id="phoneForm" novalidate>
+                        <label class="field">Mobile number
+                            <span class="phone-wrap">
+                                <select id="countryCode" aria-label="Country code">
+                                    <option value="+91" selected>🇮🇳 +91</option><option value="+1">🇺🇸 +1</option><option value="+44">🇬🇧 +44</option>
+                                    <option value="+971">🇦🇪 +971</option><option value="+65">🇸🇬 +65</option><option value="+61">🇦🇺 +61</option>
+                                </select>
+                                <input id="phoneNumber" type="tel" inputmode="tel" autocomplete="tel-national" placeholder="98765 43210" />
+                            </span>
+                        </label>
+                        <button id="sendCodeBtn" class="btn btn-primary btn-block" type="submit">Send verification code</button>
+                    </form>
+                    <form id="codeForm" hidden novalidate>
+                        <label class="field">6-digit code<input id="smsCode" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="••••••" /></label>
+                        <button id="verifyBtn" class="btn btn-primary btn-block" type="submit">Verify and continue</button>
+                        <button id="resendBtn" class="btn-link small block" type="button">Use a different number</button>
+                    </form>
+                    <button class="btn-link small block" id="phoneBack" type="button">← Other sign-in options</button>
+                </div>
+            </div>
+            <p class="auth-foot">By continuing you agree to use Arbor as an educational tool; it does not provide financial advice. HFRI by <a href="${HFRI_SITE.research}" target="_blank" rel="noopener">Vivaan Agarwal</a>.</p>
+        </section>
+    </div>`;
 
-        document.querySelectorAll(".auth-tab").forEach(t => { t.onclick = () => setAuthMode(t.dataset.mode); });
-        setAuthMode(authMode);
+    const $ = id => document.getElementById(id);
+    const msg = $("authMessage");
+    const setMsg = (text, type = "error") => { msg.textContent = text; msg.className = `auth-message ${type}`; };
+    const clearMsg = () => { msg.textContent = ""; msg.className = "auth-message"; };
+    const busyButtons = on => document.querySelectorAll(".auth-card button").forEach(btn => { btn.disabled = on; });
+    const friendly = error => AUTH_ERRORS[error?.code] || getAuthErrorMessage(error);
 
-        const emailInput = document.getElementById("email");
-        const passwordInput = document.getElementById("password");
-        const authMessage = document.getElementById("authMessage");
-        const loginBtn = document.getElementById("login");
-        const signupBtn = document.getElementById("signup");
-        const resetBtn = document.getElementById("reset");
-
-        function setAuthMessage(message, type = "error") {
-            authMessage.textContent = message;
-            authMessage.className = `auth-message ${type}`;
-        }
-
-        function setAuthBusy(isBusy) {
-            loginBtn.disabled = isBusy;
-            signupBtn.disabled = isBusy;
-            resetBtn.disabled = isBusy;
-        }
-
-        async function runAuthAction(action, loadingMessage) {
-            const email = emailInput.value.trim();
-            const password = passwordInput.value;
-
-            if (!email) {
-                setAuthMessage("Enter your email address.");
-                emailInput.focus();
-                return;
-            }
-
-            if (action !== "reset" && !password) {
-                setAuthMessage("Enter your password.");
-                passwordInput.focus();
-                return;
-            }
-
-            setAuthBusy(true);
-            setAuthMessage(loadingMessage, "info");
-
-            try {
-                if (action === "signup") {
-                    await signUp(email, password);
-                    // observeAuth renders the app once the session is active
-                    setAuthMessage("Account created. Loading your workspace...", "success");
-                    return;
-                }
-
-                if (action === "login") {
-                    await login(email, password);
-                    setAuthMessage("Logged in. Loading your workspace...", "success");
-                    return;
-                }
-
-                await resetPassword(email);
-                setAuthMessage("Password reset email sent.", "success");
-            } catch (error) {
-                console.error("Auth action failed:", error);
-                setAuthMessage(getAuthErrorMessage(error));
-            } finally {
-                setAuthBusy(false);
-            }
-        }
-
-        signupBtn.onclick = async () => {
-            await runAuthAction("signup", "Creating account...");
-        };
-
-        loginBtn.onclick = async () => {
-            await runAuthAction("login", "Logging in...");
-        };
-
-        resetBtn.onclick = async () => {
-            await runAuthAction("reset", "Sending reset email...");
-       };
-
-        [emailInput, passwordInput].forEach(input => {
-            input.addEventListener("keydown", async (event) => {
-                if (event.key === "Enter") {
-                    if (authMode === "signup") await runAuthAction("signup", "Creating account...");
-                    else await runAuthAction("login", "Logging in...");
-                }
-            });
-        });
+    function setMode(mode) {
+        authMode = mode;
+        const signup = mode === "signup";
+        $("authTitle").textContent = signup ? "Create your Arbor account" : "Welcome back";
+        $("authSub").textContent = signup ? "Free to use. No bank login needed." : "Sign in to open your dashboard.";
+        $("nameField").hidden = !signup;
+        $("forgotBtn").hidden = signup;
+        $("emailSubmit").textContent = signup ? "Create account" : "Sign in";
+        $("password").autocomplete = signup ? "new-password" : "current-password";
+        $("authSwitch").innerHTML = signup
+            ? `Already have an account? <button type="button" class="btn-link" data-mode="login">Sign in</button>`
+            : `New to Arbor? <button type="button" class="btn-link" data-mode="signup">Create an account</button>`;
+        $("authSwitch").querySelector("button").onclick = e => setMode(e.target.dataset.mode);
+        clearMsg();
     }
+    setMode(authMode);
+
+    async function run(action, loading) {
+        busyButtons(true);
+        setMsg(loading, "info");
+        try {
+            await setRemember($("remember")?.checked ?? true);
+            await action();
+            setMsg("Signed in. Loading your workspace…", "success");
+            // observeAuth renders the app once the session is active
+        } catch (error) {
+            if (SILENT_AUTH_ERRORS.includes(error?.code)) clearMsg();
+            else { console.error("Auth failed:", error); setMsg(friendly(error)); }
+        } finally {
+            busyButtons(false);
+        }
+    }
+
+    $("googleBtn").onclick = () => run(() => signInWithGoogle(), "Opening Google…");
+    $("appleBtn").onclick = () => run(() => signInWithApple(), "Opening Apple…");
+
+    $("pwToggle").onclick = () => {
+        const show = $("password").type === "password";
+        $("password").type = show ? "text" : "password";
+        $("pwToggle").textContent = show ? "Hide" : "Show";
+        $("pwToggle").setAttribute("aria-label", show ? "Hide password" : "Show password");
+    };
+
+    $("emailForm").onsubmit = (e) => {
+        e.preventDefault();
+        const email = $("email").value.trim();
+        const password = $("password").value;
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { setMsg("Enter a valid email address."); $("email").focus(); return; }
+        if (!password) { setMsg("Enter your password."); $("password").focus(); return; }
+        if (authMode === "signup" && password.length < 6) { setMsg("Password must be at least 6 characters."); $("password").focus(); return; }
+        if (authMode === "signup") run(() => signUp(email, password, $("displayName").value.trim()), "Creating your account…");
+        else run(() => login(email, password), "Signing in…");
+    };
+
+    $("forgotBtn").onclick = async () => {
+        const email = $("email").value.trim();
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { setMsg("Enter your email above first, then press “Forgot password?”."); $("email").focus(); return; }
+        busyButtons(true);
+        try {
+            await resetPassword(email);
+            setMsg(`If an account exists for ${email}, a reset link is on its way.`, "success");
+        } catch (error) {
+            setMsg(friendly(error));
+        } finally { busyButtons(false); }
+    };
+
+    // ---- phone ----
+    const showPhone = on => { $("providerView").hidden = on; $("phoneView").hidden = !on; clearMsg(); if (on) $("phoneNumber").focus(); };
+    $("phoneBtn").onclick = () => showPhone(true);
+    $("phoneBack").onclick = () => { resetPhoneVerifier(); confirmation = null; $("codeForm").hidden = true; $("phoneForm").hidden = false; showPhone(false); };
+    $("phoneForm").onsubmit = async (e) => {
+        e.preventDefault();
+        const digits = $("phoneNumber").value.replace(/[^\d]/g, "");
+        if (digits.length < 6) { setMsg("Enter your mobile number."); return; }
+        const full = `${$("countryCode").value}${digits.replace(/^0+/, "")}`;
+        busyButtons(true);
+        setMsg("Sending code…", "info");
+        try {
+            await setRemember($("remember")?.checked ?? true);
+            confirmation = await sendPhoneCode(full, "sendCodeBtn");
+            $("phoneForm").hidden = true;
+            $("codeForm").hidden = false;
+            setMsg(`We sent a 6-digit code to ${full}.`, "success");
+            $("smsCode").focus();
+        } catch (error) {
+            setMsg(friendly(error));
+        } finally { busyButtons(false); }
+    };
+    $("codeForm").onsubmit = (e) => {
+        e.preventDefault();
+        const code = $("smsCode").value.trim();
+        if (!/^\d{6}$/.test(code)) { setMsg("Enter the 6-digit code from the SMS."); return; }
+        run(() => confirmation.confirm(code), "Verifying…");
+    };
+    $("resendBtn").onclick = () => { resetPhoneVerifier(); confirmation = null; $("codeForm").hidden = true; $("phoneForm").hidden = false; clearMsg(); };
+
+    // finish a Google/Apple redirect sign-in (mobile browsers)
+    completeRedirect().catch(error => { if (!SILENT_AUTH_ERRORS.includes(error?.code)) setMsg(friendly(error)); });
+}
+
+observeAuth(async (user) => {
+    if (user) await renderApp(user);
+    else renderAuthScreen();
 });

@@ -17,19 +17,43 @@ Arbor brings accounts, activity, assets, loans and EMIs into one workspace, and 
 
 ## Features
 
-- Accounts with opening balances; income, expenses (incl. manually recorded tax), transfers
-- Assets with simple/compound appreciation or depreciation, partial sales
-- Loans with EMI schedules (reducing-balance interest, auto-paid when due)
-- 13 metrics, all calculated as of today: net worth, cash, savings rate, emergency cover, HFRI, …
-- HFRI score with its four dimensions (savings, debt, emergency coverage, expense stability), using the published model
-- Built-in step-by-step guide
+**Personal & Family workspaces**
+- Accounts, income, expenses (incl. manually recorded tax), transfers
+- Assets with growth or depreciation; loans with EMI schedules (reducing balance)
+- Net worth, savings rate, emergency cover and the **HFRI** resilience score
+- **Stress test**: job loss, pay cut, medical bill, inflation, market crash, or your own shock
+- **Forecast**: Monte Carlo simulation of net worth (2,000 futures, seeded and reproducible)
+
+**Business workspaces**: proper double-entry accounting
+- Chart of accounts (standard Indian set, extendable), opening balances
+- Quick entries for sales, purchases, returns, receipts, payments, expenses, accruals, capital, drawings, loans, fixed assets, depreciation and contra entries; multi-line journal entries
+- Journal → Ledger → Trial balance → **Trading A/c, Profit & Loss A/c, Balance Sheet, Cash Flow Statement** (financial year April–March, printable)
+- Periodic inventory with closing-stock valuation; profit and stock carried forward between years
+- Ratios (margins, current/quick ratio, ROE, debtor/creditor days), break-even stress test, Monte Carlo cash forecast
+
+**Sign-in**: Google, Apple, phone (SMS) or email, via Firebase Authentication.
+
+## Tests
+
+```
+npm test
+```
+Covers the personal engine, HFRI (cross-checked against the official calculator when its repo sits next to this one), the accounting engine (a textbook year plus 900 randomised sets of books that must balance), and the simulations (checked against closed-form answers).
+
+## Firebase setup for sign-in methods
+
+In the Firebase console → Authentication → Sign-in method, enable **Google**, **Apple** and **Phone** (Email/Password is already used). Apple needs an Apple Developer account; Phone needs SMS quota (Blaze plan). Add the site's domain under Authentication → Settings → Authorized domains. Until a method is enabled, Arbor shows a clear message instead of failing silently.
 
 ## Code map
 
 ```
 index.html, landing.css, landing.js   public site
 app.html, app.js, style.css           platform UI
-modules/engine.js                     all financial calculations (pure, testable)
+modules/engine.js                     personal financial calculations (pure, testable)
+modules/accounting.js                 double-entry engine: ledgers, trial balance, final accounts
+modules/simulate.js                   stress tests and Monte Carlo (seeded RNG)
+business.js                           business workspace UI
+modules/personal-scenarios.js         personal stress test + forecast UI
 modules/hfri.js                       HFRI scoring model (matches the official calculator)
 modules/site.js                       links and credits used everywhere — edit here
 modules/*.js, profiles/, firebase/    Firestore data access and auth

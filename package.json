@@ -1,0 +1,8 @@
+{
+  "name": "arbor",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node tests/engine.test.mjs && node tests/hfri.test.mjs && node tests/accounting.test.mjs && node tests/simulate.test.mjs"
+  }
+}

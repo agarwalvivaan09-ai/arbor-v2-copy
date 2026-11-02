@@ -153,7 +153,7 @@ export function computeFinancials(state, options = {}) {
 
     // Per-month household ledger used by HFRI.
     const household = {};
-    // months in which the user actually recorded entries (auto EMIs excluded)
+    // months in which the user recorded income or spending (auto EMIs excluded)
     const recordedMonths = new Set();
     const hh = dateValue => {
         const m = monthKey(dateValue);
@@ -174,8 +174,13 @@ export function computeFinancials(state, options = {}) {
         const acc = t.accountId;
         if (!acc || balances[acc] === undefined) return;
 
-        const recorded = monthKey(t.date);
-        if (recorded) recordedMonths.add(recorded);
+        // Only income/spending entries define the averaging window. Taking a
+        // loan, buying an asset or moving money between accounts is not a
+        // month of household cash flow and must not dilute the averages.
+        if (["income", "expense", "liability_payment"].includes(t.type)) {
+            const recorded = monthKey(t.date);
+            if (recorded) recordedMonths.add(recorded);
+        }
 
         switch (t.type) {
             case "income":
@@ -347,9 +352,6 @@ export function computeFinancials(state, options = {}) {
         ? (income - expense) / income
         : 0;
 
-    let status = "Vulnerable";
-    if (savingsRate >= 0.4) status = "Strong";
-    else if (savingsRate >= 0.15) status = "Stable";
 
     // ------------------------
     // TOP SPEND CATEGORY (case-insensitive: "Rent" == "rent ")
@@ -370,22 +372,6 @@ export function computeFinancials(state, options = {}) {
             topCategory = label;
         }
     });
-
-    // ------------------------
-    // MRR (salary only)
-    // ------------------------
-    const monthlySalary = {};
-    effectiveTxns.forEach(t => {
-        if (t.type !== "income" || t.subtype !== "salary") return;
-        const m = monthKey(t.date);
-        if (!m) return;
-        monthlySalary[m] = (monthlySalary[m] || 0) + amountOf(t);
-    });
-
-    const salaryMonths = Object.values(monthlySalary);
-    const MRR = salaryMonths.length
-        ? salaryMonths.reduce((a, b) => a + b, 0) / salaryMonths.length
-        : 0;
 
     // ------------------------
     // MONTHLY CASH FLOW
@@ -419,13 +405,6 @@ export function computeFinancials(state, options = {}) {
     const emergencyCoverage = avgExpense > 0 ? Math.max(0, totalCash) / avgExpense : 0;
 
     // ------------------------
-    // AVG TRANSACTION SIZE (outgoing)
-    // ------------------------
-    const avgTransaction = outflows.length
-        ? outflows.reduce((s, o) => s + o.amount, 0) / outflows.length
-        : 0;
-
-    // ------------------------
     // HFRI (last 12 months of activity)
     // ------------------------
     const hfri = computeHouseholdHFRI({
@@ -446,11 +425,8 @@ export function computeFinancials(state, options = {}) {
         netWorth,
         savingsRate,
         emergencyCoverage,
-        MRR,
         topCategory,
-        status,
         avgExpense,
-        avgTransaction,
         lastMonthFlow,
         assetValues,
         liabilityOutstanding,
@@ -516,20 +492,37 @@ function computeHouseholdHFRI({ household, recordedMonths, today, debt, liquid }
     const monthlyEssential = sum("essential") / n;
     const monthlyDebtService = sum("debtService") / n;
 
+    const cvOf = (series) => {
+        const mean = series.reduce((a, b) => a + b, 0) / series.length;
+        if (mean <= 0 || series.length < 2) return 0;
+        const variance = series.reduce((s, v) => s + (v - mean) ** 2, 0) / series.length;
+        return Math.sqrt(variance) / mean;
+    };
+    const cv = cvOf(rows.map(r => r.spending));
+
+    // Monthly averages over the window, used by stress tests and forecasts
+    // even before there is enough history for an HFRI score.
+    const baseline = {
+        months: n,
+        income: monthlyIncome,
+        spending: monthlySpending,
+        essential: monthlyEssential > 0 ? monthlyEssential : monthlySpending,
+        debtService: monthlyDebtService,
+        spendingCV: cv,
+        incomeCV: cvOf(rows.map(r => r.income - r.tax))
+    };
+
     if (monthlyIncome <= 0) {
-        return { available: false, reason: "HFRI needs income (after tax) in the last 12 months.", months: n };
+        return { available: false, reason: "HFRI needs income (after tax) in the last 12 months.", months: n, baseline };
     }
     if (n < HFRI_MIN_MONTHS) {
         return {
             available: false,
             reason: `HFRI needs at least ${HFRI_MIN_MONTHS} months of activity to measure expense stability.`,
-            months: n
+            months: n,
+            baseline
         };
     }
-
-    const spendSeries = rows.map(r => r.spending);
-    const variance = spendSeries.reduce((s, v) => s + (v - monthlySpending) ** 2, 0) / n;
-    const cv = monthlySpending > 0 ? Math.sqrt(variance) / monthlySpending : 0;
 
     const inputs = {
         income: monthlyIncome * 12,
@@ -542,5 +535,5 @@ function computeHouseholdHFRI({ household, recordedMonths, today, debt, liquid }
         cv
     };
 
-    return { available: true, months: n, inputs, ...computeHFRI(inputs) };
+    return { available: true, months: n, inputs, baseline, ...computeHFRI(inputs) };
 }
