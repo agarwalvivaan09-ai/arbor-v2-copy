@@ -2468,3 +2468,276 @@ select:focus {
         padding: 16px;
     }
 }
+
+/* ===== Guide: navigation, steps, actions ===== */
+.guide-toc {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 18px;
+}
+
+.guide-toc button {
+    width: auto;
+    margin: 0;
+    padding: 8px 12px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: var(--surface);
+    color: var(--ink);
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.guide-toc button:hover {
+    border-color: var(--ink);
+}
+
+.guide-section {
+    scroll-margin-top: 90px;
+}
+
+.guide-kicker {
+    margin-bottom: 4px;
+    color: var(--cyan);
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.guide-subhead {
+    margin: 18px 0 10px;
+    color: var(--ink);
+    font-size: 14px;
+    font-weight: 800;
+}
+
+.guide-steps {
+    margin: 10px 0 12px;
+    padding-left: 22px;
+    color: #334155;
+    font-size: 13px;
+    line-height: 1.65;
+}
+
+.guide-steps li {
+    margin-bottom: 6px;
+    padding-left: 4px;
+}
+
+.guide-steps li::marker {
+    color: var(--cyan);
+    font-weight: 800;
+}
+
+.guide-note {
+    margin: 12px 0;
+    padding: 12px 14px;
+    border-left: 3px solid var(--amber);
+    border-radius: 6px;
+    background: #fdf8ee;
+    color: #5b4a26;
+    font-size: 13px;
+    line-height: 1.6;
+}
+
+.guide-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 14px;
+}
+
+.guide-try,
+.link-btn {
+    display: inline-flex;
+    align-items: center;
+    width: auto;
+    margin: 0;
+    padding: 9px 14px;
+    border: 1px solid var(--ink);
+    border-radius: 8px;
+    background: var(--ink);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 700;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.guide-try.ghost,
+.link-btn {
+    background: transparent;
+    color: var(--ink);
+}
+
+.link-btn {
+    margin-left: 8px;
+    padding: 4px 10px;
+}
+
+.guide-small {
+    margin-top: 8px;
+    font-size: 12px;
+}
+
+.guide-bands {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 8px;
+    margin-bottom: 14px;
+}
+
+.guide-bands .band {
+    padding: 12px;
+    border-radius: 8px;
+    border-top: 4px solid var(--band, var(--muted));
+    background: var(--surface-2);
+}
+
+.guide-bands strong,
+.guide-bands span {
+    display: block;
+}
+
+.guide-bands strong {
+    color: var(--ink);
+    font-size: 13px;
+}
+
+.guide-bands span {
+    margin-top: 4px;
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.4;
+}
+
+/* band colours shared by guide, metric card and HFRI panel */
+.guide-bands .very-low, .band-very-low { --band: #d73535; }
+.guide-bands .low, .band-low { --band: #e0702b; }
+.guide-bands .transition, .band-transition { --band: #b7791f; }
+.guide-bands .high, .band-high { --band: #2f9e63; }
+.guide-bands .very-high, .band-very-high { --band: #159447; }
+
+/* ===== HFRI on the overview ===== */
+.hfri-metric strong small {
+    margin-left: 2px;
+    color: var(--muted);
+    font-size: 0.5em;
+    font-weight: 600;
+}
+
+.hfri-metric[class*="band-"]::before {
+    background: var(--band);
+}
+
+.hfri-panel {
+    margin-bottom: 18px;
+}
+
+.hfri-head {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    padding: 14px;
+    border-left: 4px solid var(--band);
+    border-radius: 8px;
+    background: var(--surface-2);
+}
+
+.hfri-score strong {
+    color: var(--ink);
+    font-size: 36px;
+    font-weight: 800;
+    line-height: 1;
+}
+
+.hfri-score span {
+    margin-left: 4px;
+    color: var(--muted);
+    font-size: 13px;
+}
+
+.hfri-band {
+    color: var(--band);
+    font-size: 15px;
+    font-weight: 800;
+}
+
+.hfri-head p {
+    margin: 4px 0 0;
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.5;
+    text-align: left;
+}
+
+.hfri-dims {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
+    margin-top: 14px;
+}
+
+.hfri-dim-top {
+    display: flex;
+    justify-content: space-between;
+    color: var(--ink);
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.hfri-bar {
+    height: 6px;
+    margin: 8px 0 6px;
+    border-radius: 999px;
+    background: var(--line-soft);
+    overflow: hidden;
+}
+
+.hfri-bar i {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: var(--cyan);
+}
+
+.hfri-dim small {
+    color: var(--muted);
+    font-size: 11px;
+    line-height: 1.4;
+}
+
+.hfri-inputs {
+    margin-top: 14px;
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.6;
+}
+
+@media (max-width: 980px) {
+    .hfri-dims,
+    .guide-bands {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 640px) {
+    .hfri-dims,
+    .guide-bands {
+        grid-template-columns: 1fr;
+    }
+
+    .hfri-head {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+}
+
+.guide-section,
+.guide-section * {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}

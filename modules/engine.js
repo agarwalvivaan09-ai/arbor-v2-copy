@@ -1,3 +1,5 @@
+import { computeHFRI } from "./hfri.js";
+
 // ==========================================================
 // ARBOR FINANCIAL ENGINE
 // ----------------------------------------------------------
@@ -12,7 +14,14 @@
 //             (each repayment stops accruing interest from the
 //             day it is paid — i.e. reducing-balance logic)
 // Net worth = cash + assets - loans
+//
+// Tax is not calculated automatically. Users record tax they pay
+// as an Expense with subtype "tax"; HFRI treats it as a deduction
+// from income (disposable income) rather than as spending.
 // ==========================================================
+
+const HFRI_WINDOW_MONTHS = 12;
+const HFRI_MIN_MONTHS = 2;
 
 const DAY_MS = 1000 * 60 * 60 * 24;
 const MS_PER_YEAR = DAY_MS * 365;
@@ -82,7 +91,6 @@ export function computeFinancials(state, options = {}) {
         emis = []
     } = state || {};
 
-    const taxEnabled = options.taxEnabled || false;
     const today = toDate(options.today) || new Date();
 
     function isEffective(dateValue) {
@@ -142,7 +150,16 @@ export function computeFinancials(state, options = {}) {
 
     let income = 0;
     let expense = 0;
-    const tax = 0; // tax module not wired in yet
+
+    // Per-month household ledger used by HFRI.
+    const household = {};
+    // months in which the user actually recorded entries (auto EMIs excluded)
+    const recordedMonths = new Set();
+    const hh = dateValue => {
+        const m = monthKey(dateValue);
+        if (!m) return null;
+        return (household[m] ||= { income: 0, tax: 0, spending: 0, essential: 0, debtService: 0 });
+    };
 
     // Every outgoing spend (expense, loan payment, EMI) with its date.
     // Feeds category, monthly and average metrics.
@@ -157,17 +174,31 @@ export function computeFinancials(state, options = {}) {
         const acc = t.accountId;
         if (!acc || balances[acc] === undefined) return;
 
+        const recorded = monthKey(t.date);
+        if (recorded) recordedMonths.add(recorded);
+
         switch (t.type) {
             case "income":
                 income += amount;
                 balances[acc] += amount;
                 inflows.push({ date: t.date, amount });
+                if (hh(t.date)) hh(t.date).income += amount;
                 break;
-            case "expense":
+            case "expense": {
                 expense += amount;
                 balances[acc] -= amount;
                 outflows.push({ date: t.date, amount, category: t.category || t.subtype || "other" });
+                const month = hh(t.date);
+                if (month) {
+                    if (t.subtype === "tax") {
+                        month.tax += amount;
+                    } else {
+                        month.spending += amount;
+                        if (t.subtype !== "discretionary") month.essential += amount;
+                    }
+                }
                 break;
+            }
             case "asset_buy":
                 balances[acc] -= amount;
                 break;
@@ -181,6 +212,7 @@ export function computeFinancials(state, options = {}) {
                 expense += amount;
                 balances[acc] -= amount;
                 outflows.push({ date: t.date, amount, category: t.category || "loan payment" });
+                if (hh(t.date)) hh(t.date).debtService += amount;
                 break;
             case "transfer": {
                 const to = t.toAccountId;
@@ -264,6 +296,7 @@ export function computeFinancials(state, options = {}) {
             balances[e.accountId] -= amount;
             expense += amount;
             outflows.push({ date: due, amount, category: e.name || "EMI" });
+            if (hh(due)) hh(due).debtService += amount;
             status.paidCount++;
             status.paidAmount += amount;
         }
@@ -310,10 +343,8 @@ export function computeFinancials(state, options = {}) {
     const totalCash = Object.values(balances).reduce((a, b) => a + (b || 0), 0);
     const netWorth = totalCash + totalAssets - totalLiabilities;
 
-    const netIncomeAfterTax = taxEnabled ? income - tax : income;
-
-    const savingsRate = netIncomeAfterTax > 0
-        ? (netIncomeAfterTax - expense) / netIncomeAfterTax
+    const savingsRate = income > 0
+        ? (income - expense) / income
         : 0;
 
     let status = "Vulnerable";
@@ -394,13 +425,22 @@ export function computeFinancials(state, options = {}) {
         ? outflows.reduce((s, o) => s + o.amount, 0) / outflows.length
         : 0;
 
+    // ------------------------
+    // HFRI (last 12 months of activity)
+    // ------------------------
+    const hfri = computeHouseholdHFRI({
+        household,
+        recordedMonths,
+        today,
+        debt: totalLiabilities,
+        liquid: Math.max(0, totalCash)
+    });
+
     return {
         balances,
         totalCash,
         income,
         expense,
-        tax,
-        netIncomeAfterTax,
         totalAssets,
         totalLiabilities,
         netWorth,
@@ -414,6 +454,79 @@ export function computeFinancials(state, options = {}) {
         lastMonthFlow,
         assetValues,
         liabilityOutstanding,
-        emiStatus
+        emiStatus,
+        hfri
     };
+}
+
+function shiftMonth(key, delta) {
+    const [y, m] = key.split("-").map(Number);
+    const d = new Date(Date.UTC(y, m - 1 + delta, 1));
+    return d.toISOString().slice(0, 7);
+}
+
+// Turns Arbor's monthly ledger into the paper's HFRI inputs.
+//   Y  = annual disposable income   (income - tax)
+//   C  = annual spending            (expenses, excluding tax and debt service)
+//   DS = annual debt service        (loan repayments + EMIs)
+//   Db = outstanding debt           (all liabilities today)
+//   L  = liquid savings             (total cash in accounts)
+//   C_essential,m = avg monthly essential spending (non-discretionary)
+//   CV = std dev / mean of monthly spending
+// Monthly averages cover every month from the first to the latest
+// month in which the user recorded entries (max 12 months back), so a
+// month with no spending counts as a real zero. Automatic EMIs never
+// extend the window: otherwise an EMI due on the 1st would add a
+// mostly-empty current month and drag average income down.
+function computeHouseholdHFRI({ household, recordedMonths, today, debt, liquid }) {
+    const currentMonth = monthKey(today);
+    const windowStart = shiftMonth(currentMonth, -(HFRI_WINDOW_MONTHS - 1));
+
+    const active = [...recordedMonths]
+        .filter(m => m >= windowStart && m <= currentMonth)
+        .sort();
+
+    if (!active.length) {
+        return { available: false, reason: "Add income and expenses to calculate HFRI." };
+    }
+
+    const months = [];
+    for (let m = active[0]; m <= active[active.length - 1]; m = shiftMonth(m, 1)) months.push(m);
+
+    const rows = months.map(m => household[m] || { income: 0, tax: 0, spending: 0, essential: 0, debtService: 0 });
+    const n = rows.length;
+    const sum = key => rows.reduce((s, r) => s + r[key], 0);
+
+    const monthlyIncome = (sum("income") - sum("tax")) / n;
+    const monthlySpending = sum("spending") / n;
+    const monthlyEssential = sum("essential") / n;
+    const monthlyDebtService = sum("debtService") / n;
+
+    if (monthlyIncome <= 0) {
+        return { available: false, reason: "HFRI needs income (after tax) in the last 12 months.", months: n };
+    }
+    if (n < HFRI_MIN_MONTHS) {
+        return {
+            available: false,
+            reason: `HFRI needs at least ${HFRI_MIN_MONTHS} months of activity to measure expense stability.`,
+            months: n
+        };
+    }
+
+    const spendSeries = rows.map(r => r.spending);
+    const variance = spendSeries.reduce((s, v) => s + (v - monthlySpending) ** 2, 0) / n;
+    const cv = monthlySpending > 0 ? Math.sqrt(variance) / monthlySpending : 0;
+
+    const inputs = {
+        income: monthlyIncome * 12,
+        spending: monthlySpending * 12,
+        debt,
+        debtService: monthlyDebtService * 12,
+        liquid,
+        // fall back to all spending if nothing is tagged essential
+        essentialMonthly: monthlyEssential > 0 ? monthlyEssential : monthlySpending,
+        cv
+    };
+
+    return { available: true, months: n, inputs, ...computeHFRI(inputs) };
 }

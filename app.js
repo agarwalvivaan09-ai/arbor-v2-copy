@@ -10,6 +10,7 @@ import { createEMI, getEMIs } from "./modules/emi.js";
 import { computeFinancials, addMonths, toDate } from "./modules/engine.js";
 import { deleteAccount } from "./modules/accounts.js";
 import { deleteEMI } from "./modules/emi.js";
+import { HFRI_LINKS } from "./modules/hfri.js";
 let state = {
     assets: [],
     liabilities: [],
@@ -131,182 +132,326 @@ function readableType(type) {
 }
 
 function renderGuideContent() {
-    const guideSections = [
-        {
-            title: "1. What Arbor Tracks",
-            body: [
-                "Arbor separates your financial life into accounts, activity, assets, liabilities, and EMI schedules. Accounts are the places where cash sits. Activity is everything that changes those balances. Assets and liabilities explain what you own and what you owe, so the dashboard can calculate net worth instead of only showing cash.",
-                "A profile is a separate workspace. Use different profiles when the money should not mix, such as Personal, Business, Family, Studio, or Startup."
-            ]
-        },
-        {
-            title: "2. Accounts Are Real Cash Locations",
-            body: [
-                "Create an account for each real place where money is held: a bank account, cash wallet, UPI wallet, credit operating account, or business current account. The opening balance should be the balance on the day you start tracking.",
-                "Do not create accounts for categories like rent, food, marketing, payroll, or school fees. Those are transaction descriptions/categories, not cash locations."
-            ]
-        },
-        {
-            title: "3. Income",
-            body: [
-                "Use Income when money enters an account and does not create a new debt. Salary, business revenue, interest, dividends, refunds, and gifts can all be income depending on your use case.",
-                "Income increases the selected account balance and contributes to Income, Savings, Monthly Flow, MRR when subtype is salary, and overall cash health."
-            ]
-        },
-        {
-            title: "4. Expenses",
-            body: [
-                "Use Expense when money leaves an account for spending. Examples include rent, groceries, subscriptions, fuel, payroll, vendors, travel, or discretionary purchases.",
-                "Expenses reduce the selected account balance. They also feed Expense, Savings, Emergency Coverage, Top Spend, 3M Avg Expense, Avg Transaction Size, and Monthly Flow."
-            ]
-        },
-        {
-            title: "5. Buying Assets",
-            body: [
-                "Use Buy Asset when you convert cash into something you own: investments, equipment, gold, property, vehicles, inventory, or a valuable item. Arbor records the asset and deducts the purchase amount from the selected account.",
-                "This keeps net worth balanced. Cash goes down, assets go up, and net worth changes later through appreciation, depreciation, sale value, or interest assumptions."
-            ]
-        },
-        {
-            title: "6. Selling Assets",
-            body: [
-                "Use Sell Asset when money comes back from an asset. Select the asset being sold and the account receiving the money.",
-                "The sale increases cash and reduces the tracked asset value by the sale amount. Use clear descriptions so partial exits and full exits remain easy to audit later."
-            ]
-        },
-        {
-            title: "7. New Loans",
-            body: [
-                "Use New Loan when borrowed money enters an account. Arbor increases cash, creates a liability, and can optionally create an EMI schedule.",
-                "Do not record borrowed money as normal income. A loan improves cash today but creates an obligation, so it must appear as a liability for net worth to stay correct."
-            ]
-        },
-        {
-            title: "8. Loan Payments And EMIs",
-            body: [
-                "Use Repay Loan when you manually pay a liability. Select the loan, enter the payment amount, and Arbor reduces cash while reducing the outstanding liability.",
-                "If you enter a tenure and EMI amount when creating a loan, Arbor creates an EMI schedule. The first EMI falls one month after the loan date, and every month that has arrived is deducted from the selected account and from the loan's outstanding balance automatically. Do not also record those EMIs with Repay Loan, or they will be counted twice. The schedule stops when the tenure ends or the loan is fully repaid."
-            ]
-        },
-        {
-            title: "9. Dates Matter",
-            body: [
-                "The transaction date controls the ledger order, monthly cash flow, recent average expenses, and activity history. Use the real date of the event whenever possible.",
-                "Everything is calculated as of today. A transaction, asset, or loan dated in the future is listed but does not change balances or metrics until its date arrives."
-            ]
-        },
-        {
-            title: "10. Interest And Growth",
-            body: [
-                "For assets, the return percentage estimates appreciation or depreciation from the start date. Appreciating assets increase over time; depreciating assets reduce over time.",
-                "For liabilities, the interest percentage estimates how the outstanding loan grows. Simple interest grows linearly. Compound interest grows on the accumulated amount. Each repayment stops earning interest from the day it is paid, so the loan reduces the way a real reducing-balance loan does.",
-                "A rate of 0% is allowed. Leaving the field empty uses the default (5% for assets, 8% for loans)."
-            ]
-        },
-        {
-            title: "11. Transfers Between Accounts",
-            body: [
-                "Use Transfer when you move your own money from one account to another, such as withdrawing cash from the bank or topping up a wallet. Pick the account money leaves and the account it goes to.",
-                "A transfer is not income or an expense. It only moves cash, so Total Cash and Net Worth stay the same."
-            ]
-        },
-        {
-            title: "12. Clean Entry Habits",
-            body: [
-                "Use consistent names. For example, always use Rent instead of sometimes Rent, House Rent, and Flat Payment. Consistency makes Top Spend and expense averages easier to trust.",
-                "Add one real-world event at a time. If salary arrives in the bank, add one income. If rent leaves that bank, add one expense. If you invest from that bank, add one buy asset."
-            ]
-        },
-        {
-            title: "13. Recommended First Setup",
-            body: [
-                "Start by creating accounts with current balances. Add this month&apos;s income. Add recurring expenses. Add active assets. Add outstanding loans. Then add any EMI schedules that should continue from now.",
-                "After setup, check Total Cash against your real account balances. Then check Assets, Liabilities, and Net Worth. If those match reality, the dashboard is ready for daily use."
-            ]
-        }
+    // [id, title] — the jump menu at the top of the guide
+    const toc = [
+        ["guide-map", "Find your way around"],
+        ["guide-setup", "Step 1 · Profile"],
+        ["guide-accounts", "Step 2 · Accounts"],
+        ["guide-daily", "Step 3 · Income & spending"],
+        ["guide-transfer", "Step 4 · Transfers"],
+        ["guide-assets", "Step 5 · Investments"],
+        ["guide-loans", "Step 6 · Loans & EMIs"],
+        ["guide-tax", "Step 7 · Tax"],
+        ["guide-metrics", "Step 8 · Read the dashboard"],
+        ["guide-hfri", "HFRI score"],
+        ["guide-mistakes", "Fixing mistakes"],
+        ["guide-routine", "Monthly routine"],
+        ["guide-trouble", "Troubleshooting"]
     ];
+
+    const steps = items => `<ol class="guide-steps">${items.map(i => `<li>${i}</li>`).join("")}</ol>`;
+    const tryIt = (label, panelName, txnType = "") =>
+        `<button class="guide-try" data-open-panel="${panelName}"${txnType ? ` data-txn-type="${txnType}"` : ""}>${label} →</button>`;
+    const goTo = (label, view) => `<button class="guide-try ghost" data-go-view="${view}">${label} →</button>`;
+    const note = text => `<div class="guide-note">${text}</div>`;
+    const section = (id, kicker, title, body) => `
+    <section class="guide-panel guide-wide guide-section" id="${id}">
+        <div class="guide-kicker">${kicker}</div>
+        <h2>${title}</h2>
+        ${body}
+    </section>`;
 
     const metrics = [
-        ["Income", "All income transactions added to accounts. Loans are not counted as income."],
-        ["Expense", "Expense transactions plus loan repayments and every EMI installment that has fallen due."],
-        ["Total Cash", "All account opening balances plus cash movements from activity up to today."],
-        ["Net Worth", "Total Cash plus current asset value minus outstanding liabilities."],
-        ["Savings", "Percentage of income left after expenses. Formula: (income - expenses) / income."],
-        ["Emergency", "How many months of spending current cash can cover. Formula: total cash / 3M avg expense."],
-        ["Status", "A quick savings-rate label: Strong, Stable, or Vulnerable."],
-        ["Top Spend", "The expense category with the highest total spending."],
-        ["3M Avg Expense", "Average monthly spend across the latest three months that have expenses."],
-        ["Avg Transaction Size", "Average outgoing transaction size, including expenses and loan payments."],
-        ["Monthly Flow", "Income minus expenses (including EMIs) in the latest month with activity."],
-        ["MRR", "Average monthly salary income across months where salary was recorded."]
+        ["Income", "Every Income entry up to today. Loans and asset sales are not income."],
+        ["Expense", "Expenses (including tax you record) + loan repayments + EMIs that have fallen due."],
+        ["Total Cash", "Sum of all account balances: opening balance plus every entry dated up to today."],
+        ["Net Worth", "Total Cash + current value of assets − what you still owe on loans."],
+        ["Savings", "(Income − Expense) ÷ Income. The share of income you kept."],
+        ["Emergency", "Months of spending your cash covers: Total Cash ÷ 3M Avg Expense."],
+        ["Status", "Quick label from the savings rate: Strong (40%+), Stable (15%+), else Vulnerable."],
+        ["HFRI", "Household Financial Resilience Index, 0–100. See the HFRI section below."],
+        ["Top Spend", "The description with the most money spent (\"Rent\" and \"rent\" count together)."],
+        ["3M Avg Expense", "Average spending of the latest three months that had spending."],
+        ["Avg Transaction Size", "Average size of an outgoing payment (expenses, repayments, EMIs)."],
+        ["Monthly Flow", "Income − spending in the latest month with activity."],
+        ["MRR", "Average monthly income from entries with the salary subtype."]
     ];
 
-    const workflowRows = [
-        ["Salary received", "Income", "Select the account that received salary. Use salary subtype."],
-        ["Paid rent", "Expense", "Select the account used for payment. Description can be Rent."],
-        ["Bought mutual fund", "Buy Asset", "Select the paying account. Add return assumptions if useful."],
-        ["Sold investment", "Sell Asset", "Select the asset and receiving account."],
-        ["Took a loan", "New Loan", "Select account receiving money. Enter interest and EMI if applicable."],
-        ["Paid loan installment", "Repay Loan", "Select the liability so outstanding debt reduces. Skip this for EMIs Arbor already schedules."],
-        ["Moved money between accounts", "Transfer", "Pick the from and to accounts. Not income, not expense."]
+    const entryTypes = [
+        ["Income", "income", "Money you earned arrives in an account: salary, business revenue, interest, dividends, refunds.", "Cash ↑, Income ↑"],
+        ["Expense", "expense", "Money you spent leaves an account: rent, food, bills, fuel, fees, tax.", "Cash ↓, Expense ↑"],
+        ["Transfer", "transfer", "You move your own money between two of your accounts.", "One account ↓, the other ↑. Nothing else changes."],
+        ["Buy Asset", "asset_buy", "You turn cash into something you own: a fund, shares, gold, property, a vehicle.", "Cash ↓, Assets ↑, Net Worth unchanged on the day"],
+        ["Sell Asset", "asset_sell", "You sell all or part of an asset Arbor is tracking.", "Cash ↑, that asset's value ↓"],
+        ["New Loan", "liability_add", "Borrowed money arrives in an account. Optionally creates an EMI schedule.", "Cash ↑, Liabilities ↑, Net Worth unchanged on the day"],
+        ["Repay Loan", "liability_payment", "You make a one-off or extra payment on a loan (not a scheduled EMI).", "Cash ↓, that loan ↓, Expense ↑"]
     ];
 
     return `
 <div class="guide-hero">
     <div>
-        <div class="profile-kicker">Operating Manual</div>
-        <h2>How to keep Arbor accurate from day one.</h2>
-        <p>Read this once before entering real data. The rule is simple: accounts show where cash lives, activity explains what changed, assets show what you own, and liabilities show what you owe.</p>
+        <div class="profile-kicker">Arbor Guide</div>
+        <h2>Set up Arbor once, then keep it accurate in five minutes a month.</h2>
+        <p>Follow the steps in order the first time. Each step tells you exactly which button to press, what to type, and what will change on your dashboard. Buttons marked → open the right form for you.</p>
     </div>
     <div class="guide-checklist">
-        <span>Start with accounts</span>
-        <span>Record real events</span>
-        <span>Review metrics monthly</span>
+        <span>1. Create accounts with today's balances</span>
+        <span>2. Record each real money event once</span>
+        <span>3. Check Total Cash against your bank</span>
     </div>
 </div>
 
+<nav class="guide-toc" aria-label="Guide sections">
+    ${toc.map(([id, title]) => `<button data-guide-jump="${id}">${title}</button>`).join("")}
+</nav>
+
 <div class="guide-grid">
-    ${guideSections.map(section => `
-    <div class="guide-panel">
-        <h2>${section.title}</h2>
-        ${section.body.map(paragraph => `<p>${paragraph}</p>`).join("")}
-    </div>
-    `).join("")}
 
-    <div class="guide-panel guide-wide">
-        <h2>Metric Glossary</h2>
-        <div class="guide-metric-list">
-            ${metrics.map(([label, description]) => `
-            <div>
-                <strong>${label}</strong>
-                <span>${description}</span>
-            </div>
-            `).join("")}
-        </div>
+${section("guide-map", "Orientation", "Find your way around", `
+    <div class="guide-table">
+        <div class="guide-table-row"><span>Top bar</span><strong>Add Data</strong><p>Opens the Command Panel on the right. Everything you enter goes through it.</p></div>
+        <div class="guide-table-row"><span>Top bar</span><strong>Profiles</strong><p>Goes back to the profile list so you can open another workspace.</p></div>
+        <div class="guide-table-row"><span>Top bar</span><strong>Logout</strong><p>Signs you out. Your data stays saved in your account.</p></div>
+        <div class="guide-table-row"><span>Tab</span><strong>Overview</strong><p>All metrics, your HFRI score, account balances and recent activity.</p></div>
+        <div class="guide-table-row"><span>Tab</span><strong>Accounts</strong><p>Your accounts, assets, loans and EMI schedules with their current values.</p></div>
+        <div class="guide-table-row"><span>Tab</span><strong>Activity</strong><p>The full ledger of every entry, newest first. Delete entries here with ×.</p></div>
+        <div class="guide-table-row"><span>Command Panel</span><strong>Add Activity</strong><p>Record income, spending, transfers, investments and loans.</p></div>
+        <div class="guide-table-row"><span>Command Panel</span><strong>Add Account</strong><p>Create a new place where money is kept. Close the panel with × or by clicking outside it.</p></div>
     </div>
+`)}
 
-    <div class="guide-panel guide-wide">
-        <h2>Which Button Should I Use?</h2>
-        <div class="guide-table">
-            ${workflowRows.map(([event, action, note]) => `
-            <div class="guide-table-row">
-                <span>${event}</span>
-                <strong>${action}</strong>
-                <p>${note}</p>
-            </div>
-            `).join("")}
-        </div>
-    </div>
+${section("guide-setup", "Step 1", "Create and open a profile", `
+    <p>A profile is a separate workspace. Money in one profile never mixes with another, so use one for Personal, one for Business, and so on.</p>
+    ${steps([
+        "Press <strong>Profiles</strong> in the top bar to reach the profile list.",
+        "Under <strong>Create Profile</strong>, type a name such as <em>Personal</em>.",
+        "Choose <strong>Personal</strong>, <strong>Business</strong> or <strong>Family</strong>, then press <strong>Create Profile</strong>.",
+        "Click the profile card to open it. Arbor creates a starter account called <strong>Main Account</strong> with a ₹0 balance."
+    ])}
+`)}
 
-    <div class="guide-panel guide-wide">
-        <h2>Common Mistakes To Avoid</h2>
-        <p>Do not mix profiles if the finances should stay separate. Do not use accounts as categories. Do not add loans as income. Do not repay a loan as a normal expense if you want the liability to reduce. Do not delete accounts with history, because old transactions need that account to keep balances explainable.</p>
-        <p>When numbers look wrong, check these in order: account opening balances, transaction dates, selected accounts, linked asset or liability, duplicate entries, and old EMI schedules that are still active.</p>
+${section("guide-accounts", "Step 2", "Add every place your money is kept", `
+    <p>An account is a real place that holds money: a bank account, the cash in your wallet, Paytm or another wallet. It is <strong>not</strong> a category like Rent or Food.</p>
+    ${steps([
+        "Press <strong>Add Data</strong>, then the <strong>Add Account</strong> tab.",
+        "Type the account name exactly as you know it, e.g. <em>HDFC Savings</em>.",
+        "In <strong>Current Balance</strong>, type what the account holds <strong>today</strong>. Arbor counts forward from this number.",
+        "Pick <strong>Cash</strong>, <strong>Bank</strong> or <strong>Wallet</strong>. For Bank, also pick Savings or Current.",
+        "Press <strong>Add Account</strong>. Repeat for every account you use.",
+        "Open the <strong>Accounts</strong> tab and check each balance matches reality."
+    ])}
+    ${note("The starter Main Account has a ₹0 balance. If you don't need it, delete it with × before recording anything in it. An account with entries can't be deleted, so its history stays correct.")}
+    <div class="guide-actions">${tryIt("Add an account", "account")}${goTo("Open Accounts tab", "accounts")}</div>
+`)}
+
+${section("guide-daily", "Step 3", "Record income and spending", `
+    <p>Record each real event once, on the day it happened. All entries use the same form:</p>
+    ${steps([
+        "Press <strong>Add Data</strong>. The <strong>Add Activity</strong> tab opens.",
+        "Choose the <strong>Activity Type</strong> (Income or Expense).",
+        "Choose the <strong>subtype</strong> in the first drop-down. For Income: salary, business, interest, dividend or other. For Expense: <em>fixed</em> (rent, EMIs you track as bills, school fees), <em>variable</em> (groceries, fuel, utilities), <em>discretionary</em> (eating out, shopping, travel) or <em>tax</em>.",
+        "Type the <strong>Amount</strong> in rupees, numbers only, no commas.",
+        "Type a short <strong>Description</strong>. Use the same word every time (always \"Rent\", never \"House rent\").",
+        "Pick the <strong>account</strong> the money went into or came out of.",
+        "Pick the <strong>date</strong>. If you leave it empty, Arbor uses today.",
+        "Press <strong>Add</strong>. The dashboard updates immediately."
+    ])}
+    ${note("Subtypes matter: salary feeds MRR, and fixed and variable expenses count as <strong>essential spending</strong> in your HFRI score. Discretionary spending does not.")}
+    <div class="guide-actions">${tryIt("Add income", "activity", "income")}${tryIt("Add an expense", "activity", "expense")}</div>
+`)}
+
+${section("guide-transfer", "Step 4", "Move money between your own accounts", `
+    ${steps([
+        "Press <strong>Add Data</strong> and choose <strong>Transfer</strong>.",
+        "Type the amount and a description such as <em>ATM withdrawal</em>.",
+        "Pick the <strong>From account</strong> (money leaves) and the <strong>To account</strong> (money arrives).",
+        "Press <strong>Add</strong>."
+    ])}
+    ${note("A transfer is never income or an expense. Don't record an ATM withdrawal as an expense, or your spending will be counted twice: once at the ATM and again when you spend the cash.")}
+    <div class="guide-actions">${tryIt("Add a transfer", "activity", "transfer")}</div>
+`)}
+
+${section("guide-assets", "Step 5", "Investments and other assets", `
+    <p><strong>Buying</strong>: mutual funds, shares, gold, property, a vehicle.</p>
+    ${steps([
+        "Press <strong>Add Data</strong> and choose <strong>Buy Asset</strong>.",
+        "Type the price paid as the Amount and the asset name as the Description (e.g. <em>Nifty 50 Index Fund</em>). The description becomes the asset's name.",
+        "Pick the account you paid from, and the purchase date.",
+        "Optional: type an expected yearly <strong>Return %</strong> (empty = 5%, 0 is allowed). Choose <strong>Appreciating</strong> for things that grow, <strong>Depreciating</strong> for things like vehicles and electronics. Choose Simple or Compound growth.",
+        "Press <strong>Add</strong>. Cash goes down and Assets go up by the same amount."
+    ])}
+    <p><strong>Selling</strong>: choose <strong>Sell Asset</strong>, pick the asset from the drop-down, type the amount you received, and pick the receiving account. A partial sale reduces the asset's value by the amount sold.</p>
+    ${note("An asset's value is an estimate from the return % you entered. To bring it in line with the market, sell it in Arbor at today's value, then buy it again at that value.")}
+    <div class="guide-actions">${tryIt("Buy an asset", "activity", "asset_buy")}${tryIt("Sell an asset", "activity", "asset_sell")}</div>
+`)}
+
+${section("guide-loans", "Step 6", "Loans and EMIs", `
+    <p><strong>Taking a loan</strong>: home loan, car loan, personal loan, money borrowed from family.</p>
+    ${steps([
+        "Press <strong>Add Data</strong> and choose <strong>New Loan</strong>.",
+        "Type the amount borrowed and a name for the loan (e.g. <em>Car Loan SBI</em>).",
+        "Pick the account the money arrived in, and the loan date.",
+        "Type the yearly <strong>Interest %</strong> (empty = 8%, 0 is allowed) and choose Simple or Compound.",
+        "If you repay in fixed monthly installments, fill in <strong>Tenure (Months)</strong> and <strong>EMI Amount</strong>. Arbor then creates an EMI schedule. Leave both empty for a loan without EMIs.",
+        "Press <strong>Add</strong>. Cash and Liabilities both go up, so Net Worth doesn't change."
+    ])}
+    <p><strong>How EMIs work</strong>: the first EMI is due one month after the loan date. Every EMI whose date has arrived is taken from the chosen account and from the loan automatically. Arbor stops when the tenure ends or the loan is fully paid. The Accounts tab shows how many have been paid and the next due date.</p>
+    <p><strong>Extra or one-off payments</strong>: choose <strong>Repay Loan</strong>, pick the loan, type the amount, pick the account, then press Add.</p>
+    ${note("Never record a scheduled EMI with Repay Loan. Arbor already counts it, and it would be paid twice.")}
+    <div class="guide-actions">${tryIt("Add a loan", "activity", "liability_add")}${tryIt("Repay a loan", "activity", "liability_payment")}</div>
+`)}
+
+${section("guide-tax", "Step 7", "Tax: you record it, Arbor never calculates it", `
+    <p>Arbor doesn't estimate tax, because every person's situation is different. When you actually pay tax (TDS on salary, advance tax, property tax, GST you bear), record it yourself:</p>
+    ${steps([
+        "Press <strong>Add Data</strong> and choose <strong>Expense</strong>.",
+        "In the subtype drop-down choose <strong>tax</strong>.",
+        "Type the amount paid and a description such as <em>Advance tax Q2</em> or <em>TDS – March</em>.",
+        "Pick the account it was paid from and the date, then press <strong>Add</strong>."
+    ])}
+    ${note("If your salary arrives after TDS is deducted, record only the amount you received as Income. You don't need a tax entry for TDS you never received. Tax entries count in Expense, and the HFRI subtracts them from income to get disposable income.")}
+    <div class="guide-actions">${tryIt("Record a tax payment", "activity", "expense")}</div>
+`)}
+
+${section("guide-metrics", "Step 8", "Read your dashboard", `
+    <p>Open the <strong>Overview</strong> tab. Everything is calculated <strong>as of today</strong>. Entries dated in the future appear in the ledger marked <em>scheduled</em>, but they don't affect any number until their date arrives.</p>
+    <div class="guide-metric-list">
+        ${metrics.map(([label, description]) => `<div><strong>${label}</strong><span>${description}</span></div>`).join("")}
     </div>
+    <div class="guide-actions">${goTo("Open Overview", "overview")}</div>
+`)}
+
+${section("guide-hfri", "Resilience", "HFRI: Household Financial Resilience Index", `
+    <p>HFRI is a 0–100 score of how well your household could absorb a financial shock, such as a job loss, a medical bill or an income cut, while still meeting essential obligations. It was developed by Vivaan Agarwal and combines four dimensions, each scored 0–100 with the calibrated functions from the research paper:</p>
+    <div class="guide-table">
+        <div class="guide-table-row"><span>25% · S</span><strong>Savings Strength</strong><p>Savings rate (Y − C) ÷ Y. Can you create a surplus each month?</p></div>
+        <div class="guide-table-row"><span>25% · D</span><strong>Debt Sustainability</strong><p>40% debt-to-income (Debt ÷ Y) + 60% debt-service-to-income (repayments ÷ Y). How heavy are your loans and EMIs?</p></div>
+        <div class="guide-table-row"><span>25% · E</span><strong>Emergency Coverage</strong><p>Liquid savings ÷ monthly essential spending. How many months could you cover?</p></div>
+        <div class="guide-table-row"><span>25% · X</span><strong>Expense Stability</strong><p>Coefficient of variation of monthly spending (std dev ÷ mean). How predictable is your spending?</p></div>
+    </div>
+    <h3 class="guide-subhead">Where Arbor gets each number</h3>
+    <div class="guide-metric-list">
+        <div><strong>Y: disposable income</strong><span>Income minus tax entries, averaged per month over your last 12 months of activity, × 12.</span></div>
+        <div><strong>C: spending</strong><span>Expense entries except tax. Loan payments and EMIs are counted separately as debt service.</span></div>
+        <div><strong>Debt and debt service</strong><span>Outstanding loans today, and repayments plus EMIs per year.</span></div>
+        <div><strong>L: liquid savings</strong><span>Total Cash across all accounts. Investments are not counted as liquid.</span></div>
+        <div><strong>Essential spending</strong><span>Expenses with the fixed or variable subtype. If none are tagged, all spending is used.</span></div>
+        <div><strong>CV: stability</strong><span>Calculated from your month-by-month spending. A month with no spending counts as zero.</span></div>
+    </div>
+    <h3 class="guide-subhead">What your score means</h3>
+    <div class="guide-bands">
+        <div class="band very-low"><strong>Below 60</strong><span>Very low</span></div>
+        <div class="band low"><strong>60–65</strong><span>Low</span></div>
+        <div class="band transition"><strong>65–70</strong><span>Transition zone: small gains in liquidity matter most</span></div>
+        <div class="band high"><strong>70–75</strong><span>High</span></div>
+        <div class="band very-high"><strong>75+</strong><span>Very high</span></div>
+    </div>
+    <p>To see your score: open <strong>Overview</strong>. The HFRI card shows the total and its band, and the <strong>Financial Resilience</strong> panel shows all four dimension scores and the inputs used. You need income and at least two months of activity before a score appears.</p>
+    <p><strong>To improve it</strong>: build cash to cover more months of essential spending (biggest effect in the transition zone), keep total EMIs low relative to income, spend less than you earn, and smooth large one-off purchases.</p>
+    ${note("The bands are provisional. They come from the paper's 1,000-household simulation and have not been validated on real household data. Use HFRI as a guide, not a guarantee.")}
+    <div class="guide-actions">
+        <a class="guide-try" href="${HFRI_LINKS.calculator}" target="_blank" rel="noopener">Open the HFRI Calculator →</a>
+        <a class="guide-try ghost" href="${HFRI_LINKS.paper}" target="_blank" rel="noopener">Read the research paper →</a>
+    </div>
+    <p class="guide-small">The calculator lets you try what-if scenarios and income or spending shocks with your own numbers. Arbor's figures are good inputs for it.</p>
+`)}
+
+${section("guide-mistakes", "Corrections", "Fixing mistakes", `
+    <p>Entries can't be edited. To correct one, delete it and add it again.</p>
+    ${steps([
+        "Open the <strong>Activity</strong> tab and find the entry.",
+        "Press <strong>×</strong> on the right and confirm.",
+        "Add the corrected entry with <strong>Add Data</strong>."
+    ])}
+    <div class="guide-metric-list">
+        <div><strong>Buy Asset entry</strong><span>Deleting it also deletes the asset. If you've already recorded a sale of that asset, delete the sale first.</span></div>
+        <div><strong>New Loan entry</strong><span>Deleting it also deletes the loan and its EMI schedule. If repayments exist, delete them first.</span></div>
+        <div><strong>Accounts</strong><span>Only accounts with no entries and no EMI schedules can be deleted. A profile always keeps at least one account.</span></div>
+        <div><strong>EMI schedule</strong><span>Delete with × on the Accounts tab. EMIs it already paid are no longer counted, so cash and the loan balance go back up.</span></div>
+    </div>
+    <div class="guide-actions">${goTo("Open Activity", "activity")}</div>
+`)}
+
+${section("guide-routine", "Habit", "Your monthly routine (5 minutes)", `
+    ${steps([
+        "Add any income, expenses, tax payments and transfers you missed this month.",
+        "Open <strong>Accounts</strong>. Compare each account balance with your bank app or wallet. If one is off, look in <strong>Activity</strong> for a missing or duplicate entry.",
+        "Check the EMI schedule shows the right number of EMIs paid.",
+        "Open <strong>Overview</strong> and look at Savings, Emergency and HFRI. Compare them with last month.",
+        "If HFRI is in the transition zone (65–70) or below, use the HFRI Calculator to see which change would help most."
+    ])}
+`)}
+
+${section("guide-trouble", "Help", "Troubleshooting: when a number looks wrong", `
+    <p>Check these in order. They cause almost every mismatch:</p>
+    ${steps([
+        "<strong>Opening balances</strong>: is each account's opening balance its balance on the day you started tracking?",
+        "<strong>Dates</strong>: an entry dated in the future is ignored until that date. A wrong year is a common slip.",
+        "<strong>Account picked</strong>: was the entry recorded against the right account?",
+        "<strong>Wrong type</strong>: a transfer recorded as an expense, or a loan recorded as income.",
+        "<strong>Duplicates</strong>: the same event entered twice, or an EMI also entered as Repay Loan.",
+        "<strong>Old EMI schedules</strong>: a schedule for a loan that was closed early still deducts money. Delete it."
+    ])}
+    ${note("HFRI shows \"Not enough data\" until you have income and at least two months of activity.")}
+`)}
+
 </div>
 `;
 }
 
+
+function renderHFRIPanel(hfri) {
+    if (!hfri?.available) {
+        return `
+<div class="section hfri-panel">
+    <h2>Financial Resilience (HFRI)</h2>
+    <div class="content">
+        <div class="empty-state">${escapeHTML(hfri?.reason || "Not enough data yet.")} <button class="link-btn" data-go-view="guide">How HFRI works</button></div>
+    </div>
+</div>`;
+    }
+
+    const { scores, indicators, inputs, band, total, months } = hfri;
+    const pct = v => `${(v * 100).toFixed(1)}%`;
+    const ec = indicators.ec === Infinity ? "∞" : `${indicators.ec.toFixed(1)} months`;
+    const dims = [
+        ["Savings Strength", scores.S, `Savings rate ${pct(indicators.sr)}`],
+        ["Debt Sustainability", scores.D, `Debt ${pct(indicators.dti)} of income • repayments ${pct(indicators.dsti)} of income`],
+        ["Emergency Coverage", scores.E, `${ec} of essential spending`],
+        ["Expense Stability", scores.X, `Spending variation (CV) ${indicators.cv.toFixed(2)}`]
+    ];
+
+    return `
+<div class="section hfri-panel">
+    <h2>Financial Resilience (HFRI)</h2>
+    <div class="content">
+        <div class="hfri-head band-${band.key}">
+            <div class="hfri-score"><strong>${total.toFixed(1)}</strong><span>/ 100</span></div>
+            <div>
+                <div class="hfri-band">${escapeHTML(band.label)}</div>
+                <p>${escapeHTML(band.text)} Based on your last ${months} month${months === 1 ? "" : "s"} of activity. Bands are provisional.</p>
+            </div>
+        </div>
+        <div class="hfri-dims">
+            ${dims.map(([label, score, detail]) => `
+            <div class="hfri-dim">
+                <div class="hfri-dim-top"><span>${label}</span><strong>${score.toFixed(0)}</strong></div>
+                <div class="hfri-bar"><i style="width:${Math.max(0, Math.min(100, score)).toFixed(1)}%"></i></div>
+                <small>${detail}</small>
+            </div>`).join("")}
+        </div>
+        <div class="hfri-inputs">
+            Inputs: disposable income ${formatMoney(inputs.income)}/yr • spending ${formatMoney(inputs.spending)}/yr •
+            debt ${formatMoney(inputs.debt)} • repayments ${formatMoney(inputs.debtService)}/yr •
+            liquid cash ${formatMoney(inputs.liquid)} • essential ${formatMoney(inputs.essentialMonthly)}/mo
+        </div>
+        <div class="guide-actions">
+            <a class="guide-try" href="${HFRI_LINKS.calculator}" target="_blank" rel="noopener">Try what-ifs in the HFRI Calculator →</a>
+            <button class="guide-try ghost" data-go-view="guide">How HFRI works →</button>
+        </div>
+    </div>
+</div>`;
+}
 
 // ==========================
 // PROFILE SCREEN
@@ -514,7 +659,8 @@ const {
     status,
     avgExpense,
     avgTransaction,
-    lastMonthFlow
+    lastMonthFlow,
+    hfri
 } = metrics;
 let activeView = localStorage.getItem("dashboardView") || "overview";
 if (!["overview", "accounts", "activity", "guide"].includes(activeView)) {
@@ -711,6 +857,12 @@ ${activeView === "overview" ? `
         <span>Based on savings rate.</span>
     </div>
 
+    <div class="metric-box hfri-metric ${hfri.available ? `band-${hfri.band.key}` : ""}">
+        <div>HFRI</div>
+        <strong>${hfri.available ? `${hfri.total.toFixed(1)}<small>/100</small>` : "—"}</strong>
+        <span>${hfri.available ? `${escapeHTML(hfri.band.label)} resilience.` : "Not enough data yet."}</span>
+    </div>
+
     <div class="metric-box">
         <div>Top Spend</div>
         <strong>${escapeHTML(topCategory)}</strong>
@@ -738,6 +890,8 @@ ${activeView === "overview" ? `
     <span>Average monthly salary income.</span>
 </div>
 </div>
+
+${renderHFRIPanel(hfri)}
 
 <div class="summary-grid">
     <div class="section">
@@ -796,8 +950,8 @@ ${activeView === "activity" ? `
 ${activeView === "guide" ? `
 <div class="page-heading">
     <div>
-        <h1>First-Time Guide</h1>
-        <p>A complete manual for setting up clean data, choosing the right entry type, and trusting every metric.</p>
+        <h1>Guide</h1>
+        <p>Step-by-step instructions for every screen and every kind of entry, plus how to read your HFRI score.</p>
     </div>
 </div>
 ${renderGuideContent()}
@@ -992,7 +1146,7 @@ let txnType = "income";
 
 const subtypeMap = {
     income: ["salary", "business", "interest", "dividend", "other"],
-    expense: ["fixed", "variable", "discretionary"],
+    expense: ["fixed", "variable", "discretionary", "tax"],
     asset_buy: ["investment"],
     asset_sell: ["liquidation"],
     liability_add: ["loan"],
@@ -1334,11 +1488,30 @@ document.body.onclick = async (e) => {
         return;
     }
 
-    // PANEL OPEN
-    const panelTrigger = target.closest("#togglePanel") || target.closest("#openAddPanel");
+    // GUIDE: jump to a section
+    const jump = target.closest("[data-guide-jump]");
+    if (jump) {
+        document.getElementById(jump.dataset.guideJump)?.scrollIntoView({ behavior: "smooth", block: "start" });
+        return;
+    }
+
+    // GUIDE / anywhere: switch dashboard tab
+    const goView = target.closest("[data-go-view]");
+    if (goView) {
+        localStorage.setItem("dashboardView", goView.dataset.goView);
+        await renderDashboard(user, profileId);
+        window.scrollTo({ top: 0 });
+        return;
+    }
+
+    // PANEL OPEN (optionally with an activity type preselected)
+    const panelTrigger = target.closest("#togglePanel, [data-open-panel]");
     if (panelTrigger) {
         if (panelTrigger.dataset.openPanel) {
             selectPanel(panelTrigger.dataset.openPanel);
+        }
+        if (panelTrigger.dataset.txnType) {
+            document.querySelector(`#txnTypeToggle button[data-value="${panelTrigger.dataset.txnType}"]`)?.click();
         }
         openPanel();
         return;

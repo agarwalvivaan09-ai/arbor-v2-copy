@@ -6,17 +6,12 @@ export const INCOME_TYPES = [
     "capital_gain"
 ];
 
+// "tax" is entered manually by the user; Arbor never calculates tax.
 export const EXPENSE_TYPES = [
     "fixed",
     "variable",
-    "discretionary"
-];
-
-export const TAX_TYPES = [
-    "income_tax",
-    "capital_gains_tax",
-    "property_tax",
-    "other_tax"
+    "discretionary",
+    "tax"
 ];
 
 export const ASSET_TYPES = [
