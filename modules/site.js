@@ -30,9 +30,8 @@ export const HFRI_SITE = {
 export const ARBOR = {
     name: "Arbor",
     tagline: "The financial operating system",
-    version: "V2",
-    source: "https://github.com/agarwalvivaan09-ai/arbor-v2-copy",
-    v3: "https://agarwalvivaan09-ai.github.io/arborv3/"
+    version: "V4",
+    source: "https://github.com/agarwalvivaan09-ai/arbor-v4"
 };
 
 // Tree mark used in the nav, auth screen and sidebar.

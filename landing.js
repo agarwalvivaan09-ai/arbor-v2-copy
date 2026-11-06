@@ -7,8 +7,7 @@ const LINKS = {
     calculator: HFRI_SITE.calculator,
     research: HFRI_SITE.research,
     paper: HFRI_SITE.paper,
-    hfriSource: HFRI_SITE.source,
-    v3: ARBOR.v3
+    hfriSource: HFRI_SITE.source
 };
 
 document.querySelectorAll("[data-link]").forEach(a => {
