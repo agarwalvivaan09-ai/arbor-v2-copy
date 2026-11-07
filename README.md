@@ -31,7 +31,7 @@ Arbor brings accounts, activity, assets, loans and EMIs into one workspace, and 
 - Periodic inventory with closing-stock valuation; profit and stock carried forward between years
 - Ratios (margins, current/quick ratio, ROE, debtor/creditor days), break-even stress test, Monte Carlo cash forecast
 
-**Sign-in**: Google, Apple, phone (SMS) or email, via Firebase Authentication.
+**Sign-in**: Google or email and password, via Firebase Authentication.
 
 ## Tests
 
@@ -42,7 +42,7 @@ Covers the personal engine, HFRI (cross-checked against the official calculator 
 
 ## Firebase setup for sign-in methods
 
-In the Firebase console → Authentication → Sign-in method, enable **Google**, **Apple** and **Phone** (Email/Password is already used). Apple needs an Apple Developer account; Phone needs SMS quota (Blaze plan). Add `agarwalvivaan09-ai.github.io` under Authentication → Settings → Authorized domains (without it, Google, Apple and phone sign-in are refused on the live site). Until a method is enabled, Arbor shows a clear message instead of failing silently.
+In the Firebase console → Authentication → Sign-in method, **Google** and **Email/Password** are enabled. Add `agarwalvivaan09-ai.github.io` under Authentication → Settings → Authorized domains (already done). Apple and phone (SMS) sign-in were removed because they need a paid Apple Developer account and the Blaze billing plan.
 
 ## Code map
 

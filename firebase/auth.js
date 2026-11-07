@@ -8,11 +8,8 @@ import {
   signOut,
   onAuthStateChanged,
   GoogleAuthProvider,
-  OAuthProvider,
   signInWithPopup,
   getRedirectResult,
-  RecaptchaVerifier,
-  signInWithPhoneNumber,
   setPersistence,
   browserLocalPersistence,
   browserSessionPersistence,
@@ -46,7 +43,7 @@ export async function resetPassword(email) {
   return await sendPasswordResetEmail(auth, email);
 }
 
-// GOOGLE / APPLE — popup only.
+// GOOGLE — popup only.
 // Must be called straight from the click handler (no awaits before it), or
 // Safari treats the popup as unrequested and blocks it.
 // No redirect fallback: Arbor is served from github.io while Firebase's auth
@@ -63,35 +60,12 @@ export function signInWithGoogle() {
   return withProvider(provider);
 }
 
-export function signInWithApple() {
-  const provider = new OAuthProvider("apple.com");
-  provider.addScope("email");
-  provider.addScope("name");
-  return withProvider(provider);
-}
 
 // Completes a redirect sign-in after the page reloads (no-op otherwise).
 export function completeRedirect() {
   return getRedirectResult(auth).catch(error => { throw error; });
 }
 
-// PHONE (SMS one-time code). The invisible reCAPTCHA protects against abuse.
-let verifier = null;
-export async function sendPhoneCode(phoneNumber, buttonId) {
-  if (!verifier) verifier = new RecaptchaVerifier(auth, buttonId, { size: "invisible" });
-  try {
-    return await signInWithPhoneNumber(auth, phoneNumber, verifier);
-  } catch (error) {
-    verifier.clear();
-    verifier = null;
-    throw error;
-  }
-}
-
-export function resetPhoneVerifier() {
-  if (verifier) { try { verifier.clear(); } catch { /* already cleared */ } }
-  verifier = null;
-}
 
 export async function logout() {
   return await signOut(auth);

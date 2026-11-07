@@ -641,8 +641,6 @@ td .badge-scheduled { margin-left: 6px; }
 .sso-btn { display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; padding: 11px 16px; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--surface); font-size: 14px; font-weight: 600; cursor: pointer; transition: border-color .15s ease, background .15s ease; }
 .sso-btn svg { width: 18px; height: 18px; flex: none; }
 .sso-btn:hover { border-color: var(--ink); background: var(--paper); }
-.sso-btn.apple { background: #000; border-color: #000; color: #fff; }
-.sso-btn.apple:hover { background: #1a1a1a; }
 .sso-btn:disabled, .btn-link:disabled { opacity: .55; cursor: progress; }
 .divider { display: flex; align-items: center; gap: 12px; margin: 20px 0 16px; color: var(--light); font-size: 12px; }
 .divider::before, .divider::after { content: ""; flex: 1; height: 1px; background: var(--line); }
@@ -652,8 +650,6 @@ td .badge-scheduled { margin-left: 6px; }
 .check-row { display: flex; align-items: center; gap: 8px; margin: 2px 0 10px; color: var(--muted); font-size: 13px; cursor: pointer; }
 .check-row input { width: 16px; height: 16px; accent-color: var(--ink); }
 .auth-switch { margin-top: 18px; color: var(--muted); font-size: 13.5px; text-align: center; }
-.phone-wrap { display: grid; grid-template-columns: auto 1fr; gap: 8px; }
-.phone-wrap select { padding: 10px 8px; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--surface); font-size: 14px; }
 .btn-link.block { display: block; margin: 14px auto 0; }
 .btn-link.small { font-size: 12.5px; }
 .auth-card { padding: 30px; }

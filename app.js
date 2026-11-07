@@ -1,6 +1,6 @@
 import {
     signUp, login, resetPassword, observeAuth, logout,
-    signInWithGoogle, signInWithApple, completeRedirect, sendPhoneCode, resetPhoneVerifier, setRemember
+    signInWithGoogle, completeRedirect, setRemember
 } from "./firebase/auth.js";
 import { createProfile, getProfiles } from "./profiles/profiles.js";
 import { addTransaction, getTransactions } from "./modules/transactions.js";
@@ -1652,19 +1652,11 @@ document.body.onclick = async (e) => {
 // AUTH SCREEN
 // ==========================
 const GOOGLE_SVG = `<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#4285F4" d="M22.6 12.2c0-.8-.1-1.5-.2-2.2H12v4.2h5.9a5 5 0 0 1-2.2 3.3v2.7h3.6c2.1-1.9 3.3-4.8 3.3-8z"/><path fill="#34A853" d="M12 23c3 0 5.5-1 7.3-2.7l-3.6-2.8c-1 .7-2.2 1.1-3.7 1.1-2.9 0-5.3-1.9-6.2-4.5H2.1v2.9A11 11 0 0 0 12 23z"/><path fill="#FBBC05" d="M5.8 14.1a6.6 6.6 0 0 1 0-4.2V7H2.1a11 11 0 0 0 0 10z"/><path fill="#EA4335" d="M12 5.4c1.6 0 3 .6 4.2 1.6l3.1-3.1A11 11 0 0 0 2.1 7l3.7 2.9C6.7 7.3 9.1 5.4 12 5.4z"/></svg>`;
-const APPLE_SVG = `<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M16.4 12.6c0-2.6 2.1-3.8 2.2-3.9-1.2-1.8-3.1-2-3.7-2-1.6-.2-3.1.9-3.9.9-.8 0-2-.9-3.4-.9-1.7 0-3.3 1-4.2 2.6-1.8 3.1-.5 7.7 1.3 10.2.9 1.2 1.9 2.6 3.2 2.6 1.3-.1 1.8-.8 3.3-.8s2 .8 3.4.8c1.4 0 2.3-1.3 3.1-2.5 1-1.4 1.4-2.8 1.4-2.9-.1 0-2.7-1-2.7-4.1zM13.9 4.9c.7-.9 1.2-2 1.1-3.2-1 0-2.3.7-3 1.6-.7.8-1.2 2-1.1 3.1 1.2.1 2.3-.6 3-1.5z"/></svg>`;
-const PHONE_SVG = `<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M7 2h10a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1zm4 17h2"/></svg>`;
 
 const AUTH_ERRORS = {
     "auth/operation-not-allowed": "This sign-in method isn't switched on for Arbor yet. Please use another option.",
     "auth/unauthorized-domain": "Sign-in isn't allowed from this web address yet. The site owner needs to add it in Firebase.",
     "auth/account-exists-with-different-credential": "You already have an Arbor account with this email. Sign in the way you did before.",
-    "auth/invalid-phone-number": "Enter the phone number with its country code, e.g. +91 98765 43210.",
-    "auth/missing-phone-number": "Enter your phone number.",
-    "auth/invalid-verification-code": "That code isn't right. Check the SMS and try again.",
-    "auth/code-expired": "That code has expired. Send a new one.",
-    "auth/quota-exceeded": "Too many SMS codes have been sent. Try again later.",
-    "auth/captcha-check-failed": "The security check failed. Reload the page and try again.",
     "auth/popup-blocked": "Your browser blocked the sign-in window. Allow pop-ups for this site and try again."
 };
 const SILENT_AUTH_ERRORS = ["auth/popup-closed-by-user", "auth/cancelled-popup-request", "auth/user-cancelled"];
@@ -1672,7 +1664,6 @@ const SILENT_AUTH_ERRORS = ["auth/popup-closed-by-user", "auth/cancelled-popup-r
 function renderAuthScreen() {
     document.body.onclick = null;
     let authMode = new URLSearchParams(window.location.search).get("mode") === "signup" ? "signup" : "login";
-    let confirmation = null;
 
     document.body.innerHTML = `
     <div class="auth-shell">
@@ -1703,8 +1694,6 @@ function renderAuthScreen() {
                 <div id="providerView">
                     <div class="sso">
                         <button class="sso-btn" id="googleBtn" type="button">${GOOGLE_SVG}<span>Continue with Google</span></button>
-                        <button class="sso-btn apple" id="appleBtn" type="button">${APPLE_SVG}<span>Continue with Apple</span></button>
-                        <button class="sso-btn" id="phoneBtn" type="button">${PHONE_SVG}<span>Continue with phone</span></button>
                     </div>
 
                     <div class="divider"><span>or with email</span></div>
@@ -1723,26 +1712,6 @@ function renderAuthScreen() {
                     <p class="auth-switch" id="authSwitch"></p>
                 </div>
 
-                <div id="phoneView" hidden>
-                    <form id="phoneForm" novalidate>
-                        <label class="field">Mobile number
-                            <span class="phone-wrap">
-                                <select id="countryCode" aria-label="Country code">
-                                    <option value="+91" selected>🇮🇳 +91</option><option value="+1">🇺🇸 +1</option><option value="+44">🇬🇧 +44</option>
-                                    <option value="+971">🇦🇪 +971</option><option value="+65">🇸🇬 +65</option><option value="+61">🇦🇺 +61</option>
-                                </select>
-                                <input id="phoneNumber" type="tel" inputmode="tel" autocomplete="tel-national" placeholder="98765 43210" />
-                            </span>
-                        </label>
-                        <button id="sendCodeBtn" class="btn btn-primary btn-block" type="submit">Send verification code</button>
-                    </form>
-                    <form id="codeForm" hidden novalidate>
-                        <label class="field">6-digit code<input id="smsCode" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="••••••" /></label>
-                        <button id="verifyBtn" class="btn btn-primary btn-block" type="submit">Verify and continue</button>
-                        <button id="resendBtn" class="btn-link small block" type="button">Use a different number</button>
-                    </form>
-                    <button class="btn-link small block" id="phoneBack" type="button">← Other sign-in options</button>
-                </div>
             </div>
             <p class="auth-foot">By continuing you agree to use Arbor as an educational tool; it does not provide financial advice. HFRI by <a href="${HFRI_SITE.research}" target="_blank" rel="noopener">Vivaan Agarwal</a>.</p>
         </section>
@@ -1795,7 +1764,6 @@ function renderAuthScreen() {
     }
 
     $("googleBtn").onclick = () => run(() => signInWithGoogle(), "Opening Google…");
-    $("appleBtn").onclick = () => run(() => signInWithApple(), "Opening Apple…");
 
     $("pwToggle").onclick = () => {
         const show = $("password").type === "password";
@@ -1827,36 +1795,8 @@ function renderAuthScreen() {
         } finally { busyButtons(false); }
     };
 
-    // ---- phone ----
-    const showPhone = on => { $("providerView").hidden = on; $("phoneView").hidden = !on; clearMsg(); if (on) $("phoneNumber").focus(); };
-    $("phoneBtn").onclick = () => showPhone(true);
-    $("phoneBack").onclick = () => { resetPhoneVerifier(); confirmation = null; $("codeForm").hidden = true; $("phoneForm").hidden = false; showPhone(false); };
-    $("phoneForm").onsubmit = async (e) => {
-        e.preventDefault();
-        const digits = $("phoneNumber").value.replace(/[^\d]/g, "");
-        if (digits.length < 6) { setMsg("Enter your mobile number."); return; }
-        const full = `${$("countryCode").value}${digits.replace(/^0+/, "")}`;
-        busyButtons(true);
-        setMsg("Sending code…", "info");
-        try {
-            confirmation = await sendPhoneCode(full, "sendCodeBtn");
-            $("phoneForm").hidden = true;
-            $("codeForm").hidden = false;
-            setMsg(`We sent a 6-digit code to ${full}.`, "success");
-            $("smsCode").focus();
-        } catch (error) {
-            setMsg(friendly(error));
-        } finally { busyButtons(false); }
-    };
-    $("codeForm").onsubmit = (e) => {
-        e.preventDefault();
-        const code = $("smsCode").value.trim();
-        if (!/^\d{6}$/.test(code)) { setMsg("Enter the 6-digit code from the SMS."); return; }
-        run(() => confirmation.confirm(code), "Verifying…");
-    };
-    $("resendBtn").onclick = () => { resetPhoneVerifier(); confirmation = null; $("codeForm").hidden = true; $("phoneForm").hidden = false; clearMsg(); };
 
-    // finish a Google/Apple redirect sign-in (mobile browsers)
+    // finish any Google redirect sign-in left over from older versions
     completeRedirect().catch(error => { if (!SILENT_AUTH_ERRORS.includes(error?.code)) setMsg(friendly(error)); });
 }
 
