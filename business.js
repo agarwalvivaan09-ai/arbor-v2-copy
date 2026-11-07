@@ -3,6 +3,7 @@
 // Double-entry books: Journal → Ledger → Trial Balance →
 // Trading A/c, Profit & Loss A/c, Balance Sheet, Cash Flow.
 // ==========================================================
+import { businessGuide } from "./modules/guide.js";
 import {
     GROUPS, GROUP_ORDER, computeBooks, accountLedger, monthlyBusinessSeries,
     financialYear, validateEntry, fromPaise, toPaise
@@ -1001,110 +1002,4 @@ function bindForecast(ctx) {
     run();
 }
 
-// ==========================================================
-// GUIDE
-// ==========================================================
-function businessGuide() {
-    const steps = items => `<ol class="guide-steps">${items.map(i => `<li>${i}</li>`).join("")}</ol>`;
-    const note = t => `<div class="guide-note">${t}</div>`;
-    const sec = (id, kicker, title, body) => `<section class="guide-panel guide-wide guide-section" id="${id}"><div class="guide-kicker">${kicker}</div><h2>${title}</h2>${body}</section>`;
-    const toc = [["bg-how", "How the books work"], ["bg-setup", "1 · Set up"], ["bg-daily", "2 · Daily entries"], ["bg-journal", "3 · Journal entries"], ["bg-close", "4 · Period end"], ["bg-reports", "5 · Reports"], ["bg-analysis", "6 · Stress & forecast"], ["bg-fix", "Fixing mistakes"], ["bg-rules", "Golden rules"]];
-    return `
-<div class="guide-hero">
-    <div>
-        <div class="profile-kicker">Business guide</div>
-        <h2>Proper double-entry books, without needing to be an accountant.</h2>
-        <p>Every transaction you record is posted as a journal entry where total debits equal total credits. From the journal, Arbor builds every ledger, the trial balance, and the final accounts: Trading Account, Profit &amp; Loss Account, Balance Sheet and Cash Flow Statement.</p>
-    </div>
-    <div class="guide-checklist"><span>1. Bring in opening balances</span><span>2. Record every transaction</span><span>3. Value stock at period end</span></div>
-</div>
-<nav class="guide-toc">${toc.map(([id, t]) => `<button data-guide-jump="${id}">${t}</button>`).join("")}</nav>
-<div class="guide-grid">
-${sec("bg-how", "Concepts", "How the books work", `
-    <div class="guide-table">
-        <div class="guide-table-row"><span>Journal</span><strong>The book of original entry</strong><p>Every transaction, in date order, showing which accounts were debited and credited.</p></div>
-        <div class="guide-table-row"><span>Ledger</span><strong>One page per account</strong><p>All the debits and credits to one account, with its running balance.</p></div>
-        <div class="guide-table-row"><span>Trial balance</span><strong>The arithmetic check</strong><p>Every account's balance in one list. Total debits must equal total credits.</p></div>
-        <div class="guide-table-row"><span>Final accounts</span><strong>The results</strong><p>Trading A/c (gross profit), Profit &amp; Loss A/c (net profit), Balance Sheet (financial position) and Cash Flow.</p></div>
-    </div>
-    <h3 class="guide-subhead">Debit and credit, in one table</h3>
-    <div class="guide-metric-list">
-        <div><strong>Assets and expenses</strong><span>Increase with a <b>debit</b>, decrease with a credit. Examples: cash, bank, debtors, machinery, purchases, rent.</span></div>
-        <div><strong>Liabilities, capital and income</strong><span>Increase with a <b>credit</b>, decrease with a debit. Examples: creditors, loans, capital, sales, commission received.</span></div>
-        <div><strong>Drawings</strong><span>Money the owner takes out. A <b>debit</b> that reduces capital. It's not an expense of the business.</span></div>
-    </div>
-`)}
-${sec("bg-setup", "Step 1", "Set up your books", `
-    ${steps([
-        "Create a <strong>Business</strong> workspace. Arbor creates a standard chart of accounts: cash, bank, debtors, creditors, capital, sales, purchases, common expenses and more.",
-        "Open <strong>Chart of accounts</strong> and add what's specific to you: each bank account (role: Bank), each major customer (type: Current assets, role: Customer) and each supplier (type: Current liabilities, role: Supplier).",
-        "Choose the <strong>Period</strong> at the top (Indian financial year, April–March).",
-        "Bring in opening balances: press <strong>+ Record transaction</strong> → <em>Opening balance</em>. Pick the account (bank, stock, machinery, loan, debtor…), enter its balance on the day you start, and post. Arbor puts the other side to Capital automatically, so the books balance from day one."
-    ])}
-    ${note("Starting a brand-new business? Skip opening balances and use <em>Owner adds capital</em> for the money you put in.")}
-    <div class="guide-actions"><button class="guide-try" data-open-panel="quick" data-template="opening">Enter an opening balance →</button><button class="guide-try ghost" data-go-view="accounts">Open Chart of accounts →</button></div>
-`)}
-${sec("bg-daily", "Step 2", "Record everyday transactions with Quick entry", `
-    <p>Press <strong>+ Record transaction</strong>. In <em>Quick entry</em>, choose what happened. Arbor picks which account to debit and which to credit, and shows you the journal entry before you post it.</p>
-    <div class="guide-table">
-        <div class="guide-table-row"><span>Sales</span><strong>Sale (paid now) · Sale on credit · Customer pays · Sales return</strong><p>Credit sales go to the customer's debtor account; when they pay, use <em>Customer pays</em>.</p></div>
-        <div class="guide-table-row"><span>Purchases</span><strong>Purchase (paid now) · Purchase on credit · Pay a supplier · Purchase return</strong><p>Use Purchases only for goods you resell or use in production.</p></div>
-        <div class="guide-table-row"><span>Expenses</span><strong>Pay an expense · Expense due, not yet paid</strong><p>Wages and carriage inwards are direct (Trading A/c); rent, salaries and electricity are indirect (P&amp;L A/c).</p></div>
-        <div class="guide-table-row"><span>Owner &amp; finance</span><strong>Owner adds capital · Drawings · Loan received · Repay loan principal</strong><p>Record loan interest separately with <em>Pay an expense</em> → Interest on Loan.</p></div>
-        <div class="guide-table-row"><span>Assets</span><strong>Buy a fixed asset · Charge depreciation</strong><p>Assets go on the Balance Sheet; depreciation is an expense that moves no cash.</p></div>
-        <div class="guide-table-row"><span>Contra</span><strong>Move money (cash ↔ bank)</strong><p>Depositing or withdrawing cash. It's neither income nor expense.</p></div>
-    </div>
-    <div class="guide-actions"><button class="guide-try" data-open-panel="quick" data-template="cash_sale">Record a sale →</button><button class="guide-try ghost" data-open-panel="quick" data-template="expense">Pay an expense →</button></div>
-`)}
-${sec("bg-journal", "Step 3", "Compound and unusual entries: Journal entry", `
-    ${steps([
-        "Press <strong>+ Record transaction</strong> → <strong>Journal entry</strong>.",
-        "On each line pick an account and enter <em>either</em> a debit or a credit amount. Use <strong>+ Add line</strong> for more lines.",
-        "Watch the totals: you can only post when total debits equal total credits.",
-        "Write a narration (“Being …”) and post."
-    ])}
-    ${note("Example: you pay an EMI of ₹12,000 that includes ₹2,000 of interest. Debit Bank Loan ₹10,000 and Interest on Loan ₹2,000; credit Bank Account ₹12,000.")}
-    <div class="guide-actions"><button class="guide-try" data-open-panel="journal">Open journal entry →</button></div>
-`)}
-${sec("bg-close", "Step 4", "At the end of each period", `
-    ${steps([
-        "<strong>Count and value your closing stock</strong> (at cost, or market value if lower). Add it in <em>Chart of accounts → Stock valuation</em>, dated the last day of the period.",
-        "<strong>Charge depreciation</strong> on fixed assets with Quick entry → <em>Charge depreciation</em>.",
-        "<strong>Record outstanding expenses</strong> (e.g. March salary paid in April) with <em>Expense due, not yet paid</em>.",
-        "Check <strong>Trial balance</strong> agrees and the Overview's <em>Books health</em> is all green.",
-        "Open <strong>Final accounts</strong> and print or save them as PDF."
-    ])}
-    ${note("You don't post closing entries. Arbor carries profit to Capital automatically, carries real-account balances forward, starts income and expense accounts at zero each period, and makes this period's closing stock next period's opening stock.")}
-`)}
-${sec("bg-reports", "Step 5", "Reading the reports", `
-    <div class="guide-metric-list">
-        <div><strong>Trading Account</strong><span>Net sales − cost of goods sold (opening stock + net purchases + direct expenses − closing stock) = <b>gross profit</b>.</span></div>
-        <div><strong>Profit &amp; Loss Account</strong><span>Gross profit + other income − indirect expenses = <b>net profit</b>, transferred to Capital.</span></div>
-        <div><strong>Balance Sheet</strong><span>Capital and liabilities on one side, assets on the other. They must be equal.</span></div>
-        <div><strong>Cash Flow Statement</strong><span>Cash in and out from operating, investing (fixed assets) and financing (capital, loans, drawings) activities.</span></div>
-        <div><strong>Current &amp; quick ratio</strong><span>Can you pay short-term bills? Above 1 means current assets cover current liabilities.</span></div>
-        <div><strong>Debtor / creditor days</strong><span>How long customers take to pay you, and how long you take to pay suppliers.</span></div>
-    </div>
-    <div class="guide-actions"><button class="guide-try" data-go-view="statements">Open Final accounts →</button></div>
-`)}
-${sec("bg-analysis", "Step 6", "Stress test and cash forecast", `
-    <p><strong>Stress test</strong> splits your costs into variable (cost of goods sold, which moves with sales) and fixed cash costs (overheads, excluding depreciation). It shows your break-even revenue, margin of safety, and how long cash lasts if sales fall, costs rise, or customers pay late.</p>
-    <p><strong>Cash forecast</strong> runs 2,000 simulated futures of your bank balance, with revenue moving around its trend at the volatility measured from your own sales. It gives the chance that cash runs out and the range of outcomes.</p>
-    <div class="guide-actions"><button class="guide-try" data-go-view="stress">Open Stress test →</button><button class="guide-try ghost" data-go-view="forecast">Open Cash forecast →</button></div>
-`)}
-${sec("bg-fix", "Corrections", "Fixing mistakes", `
-    ${steps([
-        "Open <strong>Journal</strong>, find the entry, and press <strong>×</strong>. Both sides are removed together, so the books stay balanced.",
-        "Post the corrected entry.",
-        "Accounts with entries can't be deleted, so no history is lost. Unused accounts can be deleted from Chart of accounts."
-    ])}
-`)}
-${sec("bg-rules", "Remember", "Golden rules", `
-    <div class="guide-metric-list">
-        <div><strong>Personal account</strong><span>Debit the receiver, credit the giver. (Debtors, creditors, capital.)</span></div>
-        <div><strong>Real account</strong><span>Debit what comes in, credit what goes out. (Cash, bank, furniture, stock.)</span></div>
-        <div><strong>Nominal account</strong><span>Debit all expenses and losses, credit all incomes and gains. (Rent, wages, sales, commission.)</span></div>
-    </div>
-`)}
-</div>`;
-}
+
