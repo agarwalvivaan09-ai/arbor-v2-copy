@@ -1772,11 +1772,17 @@ function renderAuthScreen() {
     }
     setMode(authMode);
 
+    // Persistence is applied when the checkbox changes (and once now), never
+    // inside a click handler: an await before signInWithPopup makes Safari
+    // block the popup.
+    const applyRemember = () => setRemember($("remember")?.checked ?? true).catch(() => {});
+    applyRemember();
+    if ($("remember")) $("remember").onchange = applyRemember;
+
     async function run(action, loading) {
         busyButtons(true);
         setMsg(loading, "info");
         try {
-            await setRemember($("remember")?.checked ?? true);
             await action();
             setMsg("Signed in. Loading your workspace…", "success");
             // observeAuth renders the app once the session is active
@@ -1833,7 +1839,6 @@ function renderAuthScreen() {
         busyButtons(true);
         setMsg("Sending code…", "info");
         try {
-            await setRemember($("remember")?.checked ?? true);
             confirmation = await sendPhoneCode(full, "sendCodeBtn");
             $("phoneForm").hidden = true;
             $("codeForm").hidden = false;

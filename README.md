@@ -42,7 +42,7 @@ Covers the personal engine, HFRI (cross-checked against the official calculator 
 
 ## Firebase setup for sign-in methods
 
-In the Firebase console → Authentication → Sign-in method, enable **Google**, **Apple** and **Phone** (Email/Password is already used). Apple needs an Apple Developer account; Phone needs SMS quota (Blaze plan). Add the site's domain under Authentication → Settings → Authorized domains. Until a method is enabled, Arbor shows a clear message instead of failing silently.
+In the Firebase console → Authentication → Sign-in method, enable **Google**, **Apple** and **Phone** (Email/Password is already used). Apple needs an Apple Developer account; Phone needs SMS quota (Blaze plan). Add `agarwalvivaan09-ai.github.io` under Authentication → Settings → Authorized domains (without it, Google, Apple and phone sign-in are refused on the live site). Until a method is enabled, Arbor shows a clear message instead of failing silently.
 
 ## Code map
 

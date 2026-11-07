@@ -10,7 +10,6 @@ import {
   GoogleAuthProvider,
   OAuthProvider,
   signInWithPopup,
-  signInWithRedirect,
   getRedirectResult,
   RecaptchaVerifier,
   signInWithPhoneNumber,
@@ -47,17 +46,15 @@ export async function resetPassword(email) {
   return await sendPasswordResetEmail(auth, email);
 }
 
-// GOOGLE / APPLE — popup first; fall back to a full-page redirect when
-// popups are blocked (common on mobile Safari).
-async function withProvider(provider) {
-  try {
-    return await signInWithPopup(auth, provider);
-  } catch (error) {
-    if (["auth/popup-blocked", "auth/operation-not-supported-in-this-environment"].includes(error?.code)) {
-      return await signInWithRedirect(auth, provider);
-    }
-    throw error;
-  }
+// GOOGLE / APPLE — popup only.
+// Must be called straight from the click handler (no awaits before it), or
+// Safari treats the popup as unrequested and blocks it.
+// No redirect fallback: Arbor is served from github.io while Firebase's auth
+// domain is firebaseapp.com, and current Safari/Chrome/Firefox block the
+// cross-site storage a redirect relies on, so a redirect would silently
+// return the user signed out. A blocked popup is reported instead.
+function withProvider(provider) {
+  return signInWithPopup(auth, provider);
 }
 
 export function signInWithGoogle() {
