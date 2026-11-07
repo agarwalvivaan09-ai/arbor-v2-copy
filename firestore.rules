@@ -1,0 +1,148 @@
+rules_version = '2';
+
+// Arbor — Firestore security rules.
+// Paste into Firebase console → Firestore Database → Rules → Publish.
+//
+// Who can do what:
+//   • A profile (personal or business) and everything in it belongs to its owner.
+//   • Linking a profile to a family lets that family's members READ it. Only the
+//     profile's owner can ever change its data.
+//   • A family has one head (its creator) and at most 4 people (head + 3 invited).
+//   • Only the head can remove members, remove other people's profiles, or delete
+//     the family. Members can leave, add family items, chat, and remove their own
+//     items and messages.
+//   • Invites are addressed to an email. Only someone signed in with that email,
+//     and with that email verified, can accept.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() { return request.auth != null; }
+    function uid() { return request.auth.uid; }
+    function myEmail() {
+      return ('email' in request.auth.token) && request.auth.token.email is string
+        ? request.auth.token.email.lower() : '';
+    }
+    function verified() {
+      return ('email_verified' in request.auth.token) && request.auth.token.email_verified == true;
+    }
+    function familyDoc(fid) { return get(/databases/$(database)/documents/families/$(fid)).data; }
+    function isMember(fid) { return fid is string && uid() in familyDoc(fid).memberIds; }
+    function isHead(fid) { return fid is string && familyDoc(fid).ownerId == uid(); }
+    function changedOnly(keys) { return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys); }
+
+    // ---------------- profiles ----------------
+    match /profiles/{pid} {
+      allow read: if signedIn() && (
+        resource.data.userId == uid() || isMember(resource.data.get('familyId', null)));
+
+      allow create: if signedIn()
+        && request.resource.data.userId == uid()
+        && request.resource.data.get('familyId', null) == null;
+
+      allow update: if signedIn() && (
+        // the owner: anything, but may only link the profile to a family they belong to
+        (resource.data.userId == uid()
+          && request.resource.data.userId == uid()
+          && (request.resource.data.get('familyId', null) == null
+              || request.resource.data.get('familyId', null) == resource.data.get('familyId', null)
+              || isMember(request.resource.data.get('familyId', null))))
+        // the family head: may only unlink someone else's profile from the family
+        || (isHead(resource.data.get('familyId', null))
+          && changedOnly(['familyId', 'familyName'])
+          && request.resource.data.get('familyId', null) == null));
+
+      allow delete: if signedIn() && resource.data.userId == uid();
+
+      // accounts, transactions, assets, loans, EMIs, journal, ledger accounts, stock…
+      // ({coll}/{rest=**} so this never matches the profile document itself)
+      match /{coll}/{rest=**} {
+        function prof() { return get(/databases/$(database)/documents/profiles/$(pid)).data; }
+        allow read: if signedIn() && (prof().userId == uid() || isMember(prof().get('familyId', null)));
+        allow write: if signedIn() && prof().userId == uid();
+      }
+    }
+
+    // ---------------- families ----------------
+    match /families/{fid} {
+      allow read: if signedIn() && uid() in resource.data.memberIds;
+
+      allow create: if signedIn()
+        && request.resource.data.ownerId == uid()
+        && request.resource.data.memberIds == [uid()]
+        && request.resource.data.members.keys().toSet() == [uid()].toSet();
+
+      allow update: if signedIn() && (
+        // the head: rename or remove members (never themselves). People can only
+        // ever be added by accepting an invite, never directly by the head.
+        (resource.data.ownerId == uid()
+          && request.resource.data.ownerId == uid()
+          && uid() in request.resource.data.memberIds
+          && request.resource.data.memberIds.toSet().difference(resource.data.memberIds.toSet()).size() == 0
+          && request.resource.data.members.keys().toSet().difference(resource.data.members.keys().toSet()).size() == 0)
+        // a member leaving: removes only themselves
+        || (uid() in resource.data.memberIds && resource.data.ownerId != uid()
+          && changedOnly(['memberIds', 'members'])
+          && request.resource.data.memberIds.toSet() == resource.data.memberIds.toSet().difference([uid()].toSet())
+          && request.resource.data.members.keys().toSet() == resource.data.members.keys().toSet().difference([uid()].toSet()))
+        // an invited person joining with a pending invite for their verified email
+        || (verified() && !(uid() in resource.data.memberIds)
+          && get(/databases/$(database)/documents/invites/$(fid + '_' + myEmail())).data.status == 'pending'
+          && changedOnly(['memberIds', 'members'])
+          && request.resource.data.memberIds.toSet() == resource.data.memberIds.toSet().union([uid()].toSet())
+          && request.resource.data.memberIds.size() <= 4
+          && request.resource.data.members.keys().toSet() == resource.data.members.keys().toSet().union([uid()].toSet())));
+
+      allow delete: if signedIn() && resource.data.ownerId == uid();
+
+      // family-owned assets, liabilities and due payments (e.g. the family home)
+      match /items/{iid} {
+        allow read: if signedIn() && isMember(fid);
+        allow create: if signedIn() && isMember(fid) && request.resource.data.addedBy == uid();
+        allow update: if signedIn() && isMember(fid)
+          && (resource.data.addedBy == uid() || isHead(fid))
+          && request.resource.data.addedBy == resource.data.addedBy;
+        allow delete: if signedIn() && isMember(fid) && (resource.data.addedBy == uid() || isHead(fid));
+      }
+
+      // family chat
+      match /messages/{mid} {
+        allow read: if signedIn() && isMember(fid);
+        allow create: if signedIn() && isMember(fid)
+          && request.resource.data.senderId == uid()
+          && request.resource.data.text is string
+          && request.resource.data.text.size() > 0
+          && request.resource.data.text.size() <= 1000;
+        allow delete: if signedIn() && isMember(fid) && (resource.data.senderId == uid() || isHead(fid));
+      }
+    }
+
+    // ---------------- invites ----------------
+    // Document id is "<familyId>_<lowercased email>", so one invite per person per family.
+    match /invites/{iid} {
+      allow read: if signedIn() && (resource.data.email == myEmail() || isHead(resource.data.familyId));
+
+      allow create: if signedIn()
+        && isHead(request.resource.data.familyId)
+        && iid == request.resource.data.familyId + '_' + request.resource.data.email
+        && request.resource.data.email == request.resource.data.email.lower()
+        && request.resource.data.email != myEmail()
+        && request.resource.data.status == 'pending'
+        && request.resource.data.invitedBy == uid();
+
+      allow update: if signedIn() && (
+        // the invited person accepts or declines
+        (verified() && resource.data.email == myEmail() && resource.data.status == 'pending'
+          && changedOnly(['status', 'respondedAt'])
+          && request.resource.data.status in ['accepted', 'declined'])
+        // the head re-sends an invite
+        || (isHead(resource.data.familyId)
+          && request.resource.data.familyId == resource.data.familyId
+          && request.resource.data.email == resource.data.email
+          && request.resource.data.status == 'pending'));
+
+      allow delete: if signedIn() && (isHead(resource.data.familyId) || resource.data.email == myEmail());
+    }
+
+    // everything else is closed
+  }
+}

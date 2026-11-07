@@ -376,3 +376,96 @@ ${actions(goTo("Open Journal", "journal"))}`
         ]
     });
 }
+
+// ==========================================================
+// FAMILY (the combined view across people and profiles)
+// ==========================================================
+export function familyGuide() {
+    return layout({
+        kicker: "Family guide",
+        title: "Everyone’s money, one picture.",
+        intro: "A family brings together personal and business profiles from up to four people, plus things the family owns together, and scores the household with one HFRI.",
+        quick: ["Link your profiles", "Add what the family owns and owes", "Invite up to 3 people"],
+        groups: [
+            {
+                label: "Get started",
+                sections: [
+                    {
+                        id: "fg-link", short: "Link profiles", title: "Link your profiles",
+                        body: `
+${steps([
+    "Open <strong>Profiles</strong>.",
+    "Under <strong>Your profiles</strong>, press <strong>Add to family</strong> next to each personal or business profile you want counted.",
+    "Everyone in the family links their own profiles the same way."
+])}
+${tip("Linking shares a profile’s numbers with the family, read-only. Only its owner can change it, and a profile can be in one family at a time.")}
+${actions(goTo("Open Profiles", "profiles"))}`
+                    },
+                    {
+                        id: "fg-items", short: "Family assets", title: "Add what the family owns and owes",
+                        body: `
+<p>Some things belong to the whole family rather than one profile: the family home, a joint FD, a home loan, school fees. Add them in <strong>Family assets</strong>.</p>
+${defs([
+    ["Owned together", "Its current value. Tick “counts as cash” for savings you could use quickly."],
+    ["Owed together", "The amount still owed. Counts as debt in the family HFRI."],
+    ["Payments due", "An amount and a due date, optionally every month. Shown under Payments due."]
+])}
+${actions(goTo("Open Family assets", "items"))}`
+                    },
+                    {
+                        id: "fg-invite", short: "Invite family", title: "Invite family members",
+                        body: `
+${steps([
+    "The family head opens <strong>Members</strong> and enters the person’s email.",
+    "They sign in to Arbor with that email. The invite appears on their workspace screen.",
+    "They press <strong>Accept</strong>. Their email must be verified first, so nobody can join using someone else’s address.",
+    "Once in, they link their own profiles."
+])}
+${tip("A family has the head plus up to 3 invited people.")}
+${actions(goTo("Open Members", "members"))}`
+                    }
+                ]
+            },
+            {
+                label: "Understand the numbers",
+                sections: [
+                    {
+                        id: "fg-totals", short: "Family totals", title: "Family totals",
+                        body: defs([
+                            ["Cash available", "Personal accounts + business cash and bank + family savings that count as cash."],
+                            ["Assets", "Investments and property from personal profiles, business assets other than cash, and family-owned items."],
+                            ["Liabilities", "Personal loans, business liabilities and family loans."],
+                            ["Net worth", "Cash + assets − liabilities."],
+                            ["Payments due", "EMIs from personal profiles and family dues, overdue or due in the next 30 days."]
+                        ])
+                    },
+                    {
+                        id: "fg-hfri", short: "Family HFRI", title: "The family HFRI",
+                        body: `
+<p>One score for the whole household. Arbor adds up the personal profiles’ month-by-month income, spending, tax and loan payments, adds family loans to debt and family cash savings to liquid savings, then scores the total with the same research model.</p>
+${tip("It isn’t an average of everyone’s scores. A family where one person saves a lot can cover another person’s gaps, and the family score shows that.")}
+${more("Why businesses aren’t included", "<p>Business cash belongs to the business, and what owners take home already reaches the household as personal income. Counting both would count the same money twice. Business figures still appear in the family totals.</p>")}
+${actions(goTo("Open Overview", "overview"), link("HFRI calculator", HFRI_SITE.calculator))}`
+                    }
+                ]
+            },
+            {
+                label: "Help",
+                sections: [
+                    {
+                        id: "fg-roles", short: "Who can do what", title: "Who can do what",
+                        body: defs([
+                            ["Family head", "Invites and removes people, removes any profile or item, renames or deletes the family."],
+                            ["Members", "Link and remove their own profiles, add family items, chat, and leave the family."],
+                            ["Everyone", "Sees the family totals, every linked profile’s summary and the family HFRI."]
+                        ])
+                    },
+                    {
+                        id: "fg-leave", short: "Leaving", title: "Leaving or removing someone",
+                        body: `<p>When someone leaves or is removed, their profiles are unlinked first, so the family can no longer see them. Nothing is deleted from anyone’s workspaces.</p>`
+                    }
+                ]
+            }
+        ]
+    });
+}

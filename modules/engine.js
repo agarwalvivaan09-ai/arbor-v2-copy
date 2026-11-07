@@ -432,6 +432,9 @@ export function computeFinancials(state, options = {}) {
         liabilityOutstanding,
         emiStatus,
         hfri,
+        // raw HFRI building blocks, so a family can combine several profiles
+        household,
+        recordedMonths: [...recordedMonths],
         monthlySeries: lastMonths(monthKey(today), 6).map(m => ({
             month: m,
             income: monthlyFlow[m]?.inc || 0,
@@ -536,4 +539,24 @@ function computeHouseholdHFRI({ household, recordedMonths, today, debt, liquid }
     };
 
     return { available: true, months: n, inputs, baseline, ...computeHFRI(inputs) };
+}
+
+// Family HFRI: one household score from several profiles.
+// Each part is { household, recordedMonths, debt, liquid } — month rows are
+// summed, debt and liquid savings added, then the same research model runs
+// once on the combined household (never an average of separate scores).
+export function combineHouseholdHFRI(parts, { today = new Date(), extraDebt = 0, extraLiquid = 0 } = {}) {
+    const household = {};
+    const recorded = new Set();
+    let debt = extraDebt, liquid = extraLiquid;
+    for (const p of parts) {
+        for (const [m, row] of Object.entries(p.household || {})) {
+            const t = (household[m] ||= { income: 0, tax: 0, spending: 0, essential: 0, debtService: 0 });
+            for (const k of Object.keys(t)) t[k] += row[k] || 0;
+        }
+        (p.recordedMonths || []).forEach(m => recorded.add(m));
+        debt += p.debt || 0;
+        liquid += Math.max(0, p.liquid || 0);
+    }
+    return computeHouseholdHFRI({ household, recordedMonths: recorded, today: toDate(today) || new Date(), debt, liquid: Math.max(0, liquid) });
 }

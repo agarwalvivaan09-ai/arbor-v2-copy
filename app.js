@@ -1,7 +1,9 @@
 import {
     signUp, login, resetPassword, observeAuth, logout,
-    signInWithGoogle, completeRedirect, setRemember
+    signInWithGoogle, completeRedirect, setRemember, resendVerification, refreshUser
 } from "./firebase/auth.js";
+import { renderFamily } from "./family.js";
+import { getMyFamilies, createFamily, getMyInvites, acceptInvite, declineInvite } from "./modules/family.js";
 import { createProfile, getProfiles } from "./profiles/profiles.js";
 import { addTransaction, getTransactions } from "./modules/transactions.js";
 import { addAsset, addLiability, getAssets, getLiabilities } from "./modules/networth.js";
@@ -34,6 +36,22 @@ let isSubmitting = false;
 // ==========================
 
 async function renderApp(user) {
+    const selectedFamily = localStorage.getItem("selectedFamily");
+    if (selectedFamily) {
+        try {
+            await renderFamily({
+                user, familyId: selectedFamily,
+                onSwitch: async () => { localStorage.removeItem("selectedFamily"); await renderApp(user); },
+                onLogout: logoutUser
+            });
+            return;
+        } catch (error) {
+            // not a member any more, or the family was deleted
+            console.error("Family render failed:", error);
+            localStorage.removeItem("selectedFamily");
+        }
+    }
+
     let selectedProfile = localStorage.getItem("selectedProfile");
 
     try {
@@ -125,6 +143,7 @@ const EMPTY_STATE = () => ({
 async function logoutUser() {
     state = EMPTY_STATE();
     localStorage.removeItem("selectedProfile");
+    localStorage.removeItem("selectedFamily");
     localStorage.removeItem("dashboardView");
     await logout();
     window.location.href = "index.html";
@@ -207,7 +226,11 @@ function renderHFRIPanel(hfri) {
 // ==========================
 
 async function renderProfiles(user) {
-    const profiles = await getProfiles(user.uid);
+    const [profiles, families, invites] = await Promise.all([
+        getProfiles(user.uid),
+        getMyFamilies(user.uid).catch(error => { console.error("Families failed:", error); return []; }),
+        getMyInvites(user.email).catch(error => { console.error("Invites failed:", error); return []; })
+    ]);
 
     let selectedType = "personal";
 
@@ -216,8 +239,7 @@ async function renderProfiles(user) {
 
     const typeHint = {
         personal: "Your own income, spending, savings and loans.",
-        business: "Full double-entry books: journal, ledger, trial balance, Trading and P&L accounts, balance sheet.",
-        family: "Shared household finances, with the same tools as Personal."
+        business: "Full double-entry books: journal, ledger, trial balance, Trading and P&L accounts, balance sheet."
     };
 
     document.body.innerHTML = `
@@ -234,7 +256,7 @@ async function renderProfiles(user) {
             <div class="ws-intro">
                 <div class="eyebrow-sm">Workspaces</div>
                 <h1>${profiles.length ? "Choose a workspace" : "Create your first workspace"}</h1>
-                <p>Each workspace has its own accounts, ledger, metrics and HFRI score. Keep personal, business and family money apart.</p>
+                <p>Each workspace has its own accounts, ledger, metrics and HFRI score. Keep personal and business money apart, then bring them together in a family.</p>
             </div>
 
             <div class="ws-grid">
@@ -242,7 +264,7 @@ async function renderProfiles(user) {
                 <button class="ws-card profile-card" data-id="${p.id}">
                     <span class="ws-avatar">${escapeHTML((p.name || "P")[0].toUpperCase())}</span>
                     <span class="ws-name">${escapeHTML(p.name)}</span>
-                    <span class="ws-type">${escapeHTML(p.type || "personal")}</span>
+                    <span class="ws-type">${escapeHTML(p.type === "family" ? "household" : (p.type || "personal"))}${p.familyName ? ` · in ${escapeHTML(p.familyName)}` : ""}</span>
                     <span class="ws-open">Open workspace →</span>
                 </button>`).join("")}
 
@@ -252,11 +274,44 @@ async function renderProfiles(user) {
                     <div class="segmented select profile-type-toggle">
                         <button id="personalBtn" class="active">Personal</button>
                         <button id="businessBtn">Business</button>
-                        <button id="familyBtn">Family</button>
                     </div>
                     <p class="field-help" id="typeHint">${typeHint.personal}</p>
                     <div id="profileMessage" class="auth-message" role="status"></div>
                     <button id="createProfile" class="btn btn-primary btn-block">Create workspace</button>
+                </div>
+            </div>
+
+            <div class="ws-section-head">
+                <div>
+                    <h2>Families</h2>
+                    <p>See everyone's profiles together: combined cash, assets, liabilities, payments due and one family HFRI.</p>
+                </div>
+            </div>
+            ${invites.length ? `<div class="ws-invites">${invites.map(i => `
+                <div class="ws-invite">
+                    <p><strong>${escapeHTML(i.invitedByName || "Someone")}</strong> invited you to the family <strong>${escapeHTML(i.familyName || "")}</strong>
+                    <small>${user.emailVerified ? "Accepting lets you add your profiles to it." : "Verify your email to accept. Check your inbox, then press “I've verified”."}</small></p>
+                    <div class="btn-row">
+                        ${user.emailVerified
+                            ? `<button class="btn btn-primary btn-sm" data-accept-invite="${escapeHTML(i.id)}">Accept</button>`
+                            : `<button class="btn btn-ghost btn-sm" id="resendVerify">Resend email</button><button class="btn btn-primary btn-sm" id="checkVerify">I've verified</button>`}
+                        <button class="btn btn-ghost btn-sm" data-decline-invite="${escapeHTML(i.id)}">Decline</button>
+                    </div>
+                </div>`).join("")}</div>` : ""}
+            <div id="familyMessage" class="auth-message" role="status"></div>
+            <div class="ws-grid">
+                ${families.map(f => `
+                <button class="ws-card family-card" data-family="${f.id}">
+                    <span class="ws-avatar fam">${escapeHTML((f.name || "F")[0].toUpperCase())}</span>
+                    <span class="ws-name">${escapeHTML(f.name)}</span>
+                    <span class="ws-type">${(f.memberIds || []).length} ${(f.memberIds || []).length === 1 ? "person" : "people"} · ${f.ownerId === user.uid ? "you're the head" : "member"}</span>
+                    <span class="ws-open">Open family →</span>
+                </button>`).join("")}
+                <div class="ws-card ws-new">
+                    <div class="ws-new-head"><span class="ws-avatar plus">+</span><strong>New family</strong></div>
+                    <input id="familyNameNew" placeholder="Name, e.g. The Agarwals" aria-label="Family name" maxlength="60" />
+                    <p class="field-help">You'll be the family head. Invite up to 3 people and link personal and business profiles.</p>
+                    <button id="createFamily" class="btn btn-primary btn-block">Create family</button>
                 </div>
             </div>
         </main>
@@ -268,7 +323,7 @@ async function renderProfiles(user) {
     `;
 
     // profile type toggle
-    ["personal","business","family"].forEach(type => {
+    ["personal","business"].forEach(type => {
         document.getElementById(type+"Btn").onclick = () => {
             selectedType = type;
             document.querySelectorAll(".select button").forEach(b => b.classList.remove("active"));
@@ -280,10 +335,73 @@ async function renderProfiles(user) {
     // click profile
     document.querySelectorAll(".profile-card").forEach(card => {
         card.onclick = async () => {
+            localStorage.removeItem("selectedFamily");
             localStorage.setItem("selectedProfile", card.dataset.id);
             await renderApp(user);
         };
     });
+
+    // ---- families ----
+    const familyMessage = (text, type = "error") => {
+        const el = document.getElementById("familyMessage");
+        el.textContent = text; el.className = `auth-message ${type}`;
+    };
+    document.querySelectorAll(".family-card").forEach(card => {
+        card.onclick = async () => {
+            localStorage.removeItem("selectedProfile");
+            localStorage.setItem("selectedFamily", card.dataset.family);
+            await renderApp(user);
+        };
+    });
+    document.getElementById("createFamily").onclick = async () => {
+        const name = document.getElementById("familyNameNew").value.trim();
+        if (!name) return familyMessage("Enter a family name.");
+        try {
+            familyMessage("Creating family…", "info");
+            const ref = await createFamily(user, name);
+            localStorage.removeItem("selectedProfile");
+            localStorage.setItem("selectedFamily", ref.id);
+            await renderApp(user);
+        } catch (error) {
+            console.error("Family creation failed:", error);
+            familyMessage("Could not create the family. Please try again.");
+        }
+    };
+    document.querySelectorAll("[data-accept-invite]").forEach(btn => {
+        btn.onclick = async () => {
+            const invite = invites.find(i => i.id === btn.dataset.acceptInvite);
+            try {
+                familyMessage("Joining…", "info");
+                await acceptInvite(invite, user);
+                localStorage.removeItem("selectedProfile");
+                localStorage.setItem("selectedFamily", invite.familyId);
+                await renderApp(user);
+            } catch (error) {
+                console.error("Accept failed:", error);
+                familyMessage(error?.code === "permission-denied"
+                    ? "Couldn't join. The family may be full, or the invite was cancelled."
+                    : "Couldn't join. Please try again.");
+            }
+        };
+    });
+    document.querySelectorAll("[data-decline-invite]").forEach(btn => {
+        btn.onclick = async () => {
+            const invite = invites.find(i => i.id === btn.dataset.declineInvite);
+            try { await declineInvite(invite); await renderProfiles(user); }
+            catch (error) { console.error(error); familyMessage("Couldn't decline. Please try again."); }
+        };
+    });
+    const resend = document.getElementById("resendVerify");
+    if (resend) resend.onclick = async () => {
+        try { await resendVerification(); familyMessage(`Verification email sent to ${user.email}.`, "success"); }
+        catch (error) { console.error(error); familyMessage("Couldn't send the email. Try again in a minute."); }
+    };
+    const check = document.getElementById("checkVerify");
+    if (check) check.onclick = async () => {
+        const fresh = await refreshUser().catch(() => null);
+        if (fresh?.emailVerified) await renderProfiles(fresh);
+        else familyMessage("Your email isn't verified yet. Open the link in the email, then try again.");
+    };
 
     // create profile
     document.getElementById("createProfile").onclick = async () => {

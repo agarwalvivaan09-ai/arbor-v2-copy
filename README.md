@@ -33,6 +33,14 @@ Arbor brings accounts, activity, assets, loans and EMIs into one workspace, and 
 
 **Sign-in**: Google or email and password, via Firebase Authentication.
 
+**Families**: one view across several people's profiles
+- Create a family (you become its head), link personal and business profiles, and invite up to 3 people by email (they accept with a verified email)
+- Combined cash, assets, liabilities, net worth, payments due (EMIs and family dues) and a profile-by-profile table
+- Family-owned assets, liabilities and due payments (the family home, a home loan, school fees)
+- **Family HFRI**: one household score from the personal profiles' combined monthly figures, plus family loans and savings
+- Family chat; only the head can remove people or other members' profiles
+- Linked profiles are read-only to the family; each person still edits their own profile in its own workspace
+
 ## Tests
 
 ```
@@ -43,6 +51,10 @@ Covers the personal engine, HFRI (cross-checked against the official calculator 
 ## Firebase setup for sign-in methods
 
 In the Firebase console → Authentication → Sign-in method, **Google** and **Email/Password** are enabled. Add `agarwalvivaan09-ai.github.io` under Authentication → Settings → Authorized domains (already done). Apple and phone (SMS) sign-in were removed because they need a paid Apple Developer account and the Blaze billing plan.
+
+## Firestore security rules (required)
+
+`firestore.rules` keeps every profile private to its owner and shares a profile only with the family it is linked to. Publish it in the Firebase console → Firestore Database → **Rules**: paste the file's contents and press **Publish**. The rules are covered by an emulator test suite (65 cases) and an end-to-end family test.
 
 ## Code map
 
@@ -56,6 +68,10 @@ business.js                           business workspace UI
 modules/personal-scenarios.js         personal stress test + forecast UI
 modules/hfri.js                       HFRI scoring model (matches the official calculator)
 modules/site.js                       links and credits used everywhere — edit here
+family.js                             family UI (overview, profiles, family assets, members, chat)
+modules/family.js                     family data access (families, invites, items, chat)
+modules/family-summary.js             family totals, dues and family HFRI (pure, testable)
+firestore.rules                       database security rules — publish in the Firebase console
 modules/*.js, profiles/, firebase/    Firestore data access and auth
 ```
 

@@ -74,3 +74,17 @@ export async function logout() {
 export function observeAuth(callback) {
   onAuthStateChanged(auth, callback);
 }
+
+// Email verification — needed to accept a family invite.
+export async function resendVerification() {
+  if (auth.currentUser) await sendEmailVerification(auth.currentUser);
+}
+
+// Re-reads the signed-in user (and refreshes the token) after they verify
+// their email in another tab, so the new status takes effect immediately.
+export async function refreshUser() {
+  if (!auth.currentUser) return null;
+  await auth.currentUser.reload();
+  await auth.currentUser.getIdToken(true);
+  return auth.currentUser;
+}
